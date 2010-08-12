@@ -1,7 +1,7 @@
 (ns clj-chat.core
   (:use [clojure.contrib.server-socket :only [create-server]]
-        [clojure.contrib.io :only [reader writer]]
-        [clojure.string :only [lower-case]]
+        [clojure.java.io :only [reader writer]]
+        [clojure.string :only [lower-case capitalize]]
         [clojure.contrib.str-utils :only [re-split]]
         [clj-config.core])
   (:require [clojure.contrib.str-utils2 :as str]))
@@ -13,7 +13,7 @@
 
 (defmulti execute #(-> (re-find #"^/\w+" %)
                        (str/drop 1)
-                       (str/capitalize))
+                       (capitalize))
   :default :default)
 
 (defmacro defcommand
@@ -55,7 +55,7 @@
        (rest)
        (str/join " ")))
 
-(defcommand "Register"
+(defcommand "Register" ["username" "password"]
   (let [[username password] (command-args input 2)]
     (cond (@users username)
           "A user with that name already exists."
@@ -67,7 +67,7 @@
                  (commute users assoc username {:password password})
                  "Registration successful."))))
 
-(defcommand "Login"
+(defcommand "Login" ["username" "password"]
   (let [[username password] (command-args input 2)]
     (cond (not-and username password)
           "You must specify a username and password."
@@ -81,7 +81,7 @@
                (commute users assoc-in [username :logged-in?] true))
               {:in-as username}))))
 
-(defcommand "Say"
+(defcommand "Say" ["room" "message"]
   (let [[room words] ((juxt second nnext) (re-split #"\s+" input))
         streams (vals (@rooms room))
         message (str/join " " words)]
@@ -93,7 +93,7 @@
                   (binding [*out* stream]
                     (println message))))))
 
-(defcommand "Join"
+(defcommand "Join" ["room"]
   (let [in-as (:in-as @*session*)
         [room] (command-args input 1)]
     (cond (not in-as)
@@ -108,10 +108,10 @@
                           (lower-case)
                           (@help-docs))]
     (let [{:keys [help args]} cmd-entry]
-      (or (when help (println "Docs: " help) true)
-          (println "There is no help doc for this command."))
-      (or (when args (println "Args: " args) true)
-          (println "There is no arg string for this command.")))
+      (or (when help (println "Docs:" help) true)
+          (println "There is no help documentation for this command."))
+      (or (when args (println "Args:" args) true)
+          (println "There is no argument string for this command.")))
     (str "Commands: " (str/join " " (keys @help-docs)))))
 
 (defcommand "Session"
@@ -126,7 +126,9 @@
             *out* (writer out)
             *session* (agent {})]
     (loop [input (read-line)]
-      (let [output (execute input)]
+      (let [output (try (execute input)
+                        (catch java.lang.NullPointerException _
+                          #_(logout (:in-as @*session*))))]
         (cond (map? output)
               (dosync (send *session* merge output))
               (string? output)
