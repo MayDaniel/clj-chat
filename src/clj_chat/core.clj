@@ -40,18 +40,6 @@
 (defmethod execute :default [input]
   "What?")
 
-(defcommand "Help"
-  (if-let [cmd-entry (->> (command-args input 1)
-                          (apply str)
-                          (lower-case)
-                          (@help-docs))]
-    (let [{:keys [help args]} cmd-entry]
-      (or (when help (println "Docs:" help) true)
-          (println "There is no help documentation for this command."))
-      (or (when args (println "Args:" args) true)
-          (println "There is no argument string for this command.")))
-    (str "Commands: " (str/join " " (keys @help-docs)))))
-
 (defmacro not-and [& args]
   `(not (and ~@args)))
 
@@ -66,6 +54,18 @@
        (re-split #"\s+")
        (rest)
        (str/join " ")))
+
+(defcommand "Help"
+  (if-let [cmd-entry (->> (command-args input 1)
+                          (apply str)
+                          (lower-case)
+                          (@help-docs))]
+    (let [{:keys [help args]} cmd-entry]
+      (or (when help (println "Docs:" help) true)
+          (println "There is no help documentation for this command."))
+      (or (when args (println "Args:" args) true)
+          (println "There is no argument string for this command.")))
+    (str "Commands: " (str/join " " (keys @help-docs)))))
 
 (defcommand "Register" ["username" "password"]
   (let [[username password] (command-args input 2)]
