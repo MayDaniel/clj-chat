@@ -6,7 +6,7 @@
         [clj-config.core])
   (:require [clojure.contrib.str-utils2 :as str]))
 
-(def users (ref {"Daniel" {:password "Daniel"}}))
+(def users (ref {}))
 (def rooms (ref {}))
 (def help-docs (ref {}))
 (declare *session*)
@@ -56,6 +56,8 @@
        (str/join " ")))
 
 (defcommand "Help"
+  "Prints a list of possible commands, or if a command is
+specified, prints the help string and argument list for it."
   (if-let [cmd-entry (->> (command-args input 1)
                           (apply str)
                           (lower-case)
@@ -67,7 +69,8 @@
           (println "There is no argument string for this command.")))
     (str "Commands: " (str/join " " (keys @help-docs)))))
 
-(defcommand "Register" ["username" "password"]
+(defcommand "Register"
+  ["username" "password"]
   (let [[username password] (command-args input 2)]
     (cond (@users username)
           "A user with that name already exists."
@@ -79,7 +82,8 @@
                  (commute users assoc username {:password password})
                  "Registration successful."))))
 
-(defcommand "Login" ["username" "password"]
+(defcommand "Login"
+  ["username" "password"]
   (let [[username password] (command-args input 2)]
     (cond (:in-as @*session*)
           "You are already logged in. Use command /logout to log in as this user."
@@ -95,7 +99,8 @@
                (commute users assoc-in [username :logged-in?] true))
               {:in-as username}))))
 
-(defcommand "Say" ["room" "message"]
+(defcommand "Say"
+  ["room" "message"]
   (let [[room words] ((juxt second nnext) (re-split #"\s+" input))
         streams (vals (@rooms room))
         message (str/join " " words)]
@@ -107,7 +112,8 @@
                   (binding [*out* stream]
                     (println message))))))
 
-(defcommand "Join" ["room"]
+(defcommand "Join"
+  ["room"]
   (let [in-as (:in-as @*session*)
         [room] (command-args input 1)]
     (cond (not in-as)
@@ -130,10 +136,9 @@
     (loop [input (read-line)]
       (let [output (try (execute input)
                         (catch java.lang.NullPointerException _
-                          (dosync
-                           (alter users assoc-in
-                                  [(:in-as @*session*) :logged-in?]
-                                  false))))]
+                          (when-let [in-as (:in-as @*session*)]
+                            (dosync (alter users assoc-in
+                                           [in-as logged-in?] false)))))]
         (cond (map? output)
               (dosync (send *session* merge output))
               (string? output)
