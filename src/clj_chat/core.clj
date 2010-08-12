@@ -17,7 +17,7 @@
   :default :default)
 
 (defmacro defcommand
-  {:arglists '([cmd help-string? help-args? & options])}
+  {:arglists '([cmd help-string? help-args? & fn-tail])}
   [cmd & options]
   (let [m (if (string? (first options))
             {:help (first options)}
