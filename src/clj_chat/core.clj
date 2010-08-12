@@ -129,16 +129,18 @@ specified, prints the help string and argument list for it."
   (doseq [command (-> "commands.config" read-config :commands)]
     (use (symbol (str "clj-chat.commands." command)))))
 
+(defn execute-layer [input]
+  (try (execute input)
+       (catch java.lang.NullPointerException _
+         (when-let [in-as (:in-as @*session*)]
+           (dosync (alter users assoc-in [in-as :logged-in?] false))))))
+
 (defn loop-handler [in out]
   (binding [*in* (reader in)
             *out* (writer out)
             *session* (agent {})]
     (loop [input (read-line)]
-      (let [output (try (execute input)
-                        (catch java.lang.NullPointerException _
-                          (when-let [in-as (:in-as @*session*)]
-                            (dosync (alter users assoc-in
-                                           [in-as :logged-in?] false)))))]
+      (let [output (execute-layer input)]
         (cond (map? output)
               (dosync (send *session* merge output))
               (string? output)
