@@ -138,7 +138,7 @@ specified, prints the help string and argument list for it."
                         (catch java.lang.NullPointerException _
                           (when-let [in-as (:in-as @*session*)]
                             (dosync (alter users assoc-in
-                                           [in-as logged-in?] false)))))]
+                                           [in-as :logged-in?] false)))))]
         (cond (map? output)
               (dosync (send *session* merge output))
               (string? output)
