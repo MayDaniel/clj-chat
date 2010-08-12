@@ -11,6 +11,21 @@
 (def help-docs (ref {}))
 (declare *session*)
 
+(defmacro not-and [& args]
+  `(not (and ~@args)))
+
+(defn command-args [input n]
+  (->> input
+       (re-split #"\s+")
+       (drop 1)
+       (take n)))
+
+(defn command-str [input]
+  (->> input
+       (re-split #"\s+")
+       (rest)
+       (str/join " ")))
+
 (defmulti execute #(-> (re-find #"^/\w+" %)
                        (str/drop 1)
                        (capitalize))
@@ -39,21 +54,6 @@
 
 (defmethod execute :default [input]
   "What?")
-
-(defmacro not-and [& args]
-  `(not (and ~@args)))
-
-(defn command-args [input n]
-  (->> input
-       (re-split #"\s+")
-       (drop 1)
-       (take n)))
-
-(defn command-str [input]
-  (->> input
-       (re-split #"\s+")
-       (rest)
-       (str/join " ")))
 
 (defcommand "Help"
   "Prints a list of possible commands, or if a command is
