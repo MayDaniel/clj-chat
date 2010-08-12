@@ -107,10 +107,11 @@
                           (apply str)
                           (lower-case)
                           (@help-docs))]
-    (do (or (when (:help cmd-entry) (println "Docs: " (:help cmd-entry)) true)
-            (println "There is no help doc for this command."))
-        (or (when (:args cmd-entry) (println "Args: " (:args cmd-entry)) true)
-            (println "There is no arg string for this command.")))
+    (let [{:keys [help args]} cmd-entry]
+      (or (when help (println "Docs: " help) true)
+          (println "There is no help doc for this command."))
+      (or (when args (println "Args: " args) true)
+          (println "There is no arg string for this command.")))
     (str "Commands: " (str/join " " (keys @help-docs)))))
 
 (defcommand "Session"
