@@ -81,7 +81,9 @@
 
 (defcommand "Login" ["username" "password"]
   (let [[username password] (command-args input 2)]
-    (cond (not-and username password)
+    (cond (:in-as @*session*)
+          "You are already logged in. Use command /logout to log in as this user."
+          (not-and username password)
           "You must specify a username and password."
           (not (@users username))
           "That user does not exist."
@@ -128,7 +130,10 @@
     (loop [input (read-line)]
       (let [output (try (execute input)
                         (catch java.lang.NullPointerException _
-                          #_(logout (:in-as @*session*))))]
+                          (dosync
+                           (alter users assoc-in
+                                  [(:in-as @*session*) :logged-in?]
+                                  false))))]
         (cond (map? output)
               (dosync (send *session* merge output))
               (string? output)
