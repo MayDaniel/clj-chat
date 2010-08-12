@@ -40,6 +40,18 @@
 (defmethod execute :default [input]
   "What?")
 
+(defcommand "Help"
+  (if-let [cmd-entry (->> (command-args input 1)
+                          (apply str)
+                          (lower-case)
+                          (@help-docs))]
+    (let [{:keys [help args]} cmd-entry]
+      (or (when help (println "Docs:" help) true)
+          (println "There is no help documentation for this command."))
+      (or (when args (println "Args:" args) true)
+          (println "There is no argument string for this command.")))
+    (str "Commands: " (str/join " " (keys @help-docs)))))
+
 (defmacro not-and [& args]
   `(not (and ~@args)))
 
@@ -101,18 +113,6 @@
           :else (dosync
                  (commute rooms update-in [room] assoc in-as *out*)
                  "Successfully joined the room."))))
-
-(defcommand "Help"
-  (if-let [cmd-entry (->> (command-args input 1)
-                          (apply str)
-                          (lower-case)
-                          (@help-docs))]
-    (let [{:keys [help args]} cmd-entry]
-      (or (when help (println "Docs:" help) true)
-          (println "There is no help documentation for this command."))
-      (or (when args (println "Args:" args) true)
-          (println "There is no argument string for this command.")))
-    (str "Commands: " (str/join " " (keys @help-docs)))))
 
 (defcommand "Session"
   (str @*session*))
