@@ -63,10 +63,12 @@ specified, prints the help string and argument list for it."
                           (lower-case)
                           (@help-docs))]
     (let [{:keys [help args]} cmd-entry]
-      (or (when help (println "Docs:" help) true)
-          (println "There is no help documentation for this command."))
-      (or (when args (println "Args:" args) true)
-          (println "There is no argument string for this command.")))
+      (println (if help
+                 (str "Docs:" help)
+                 "There is no help documentation for this command."))
+      (println (if args
+                 (str "Args: " args)
+                 "There is no argument string for this command."))
     (str "Commands: " (str/join " " (keys @help-docs)))))
 
 (defcommand "Register"
@@ -122,6 +124,13 @@ specified, prints the help string and argument list for it."
                  (commute rooms update-in [room] assoc in-as *out*)
                  "Successfully joined the room."))))
 
+(defcommand "Logout"
+  (if-let [in-as (:in-as @*session*)]
+    (dosync (alter users assoc-in [in-as :logged-in?] false)
+            (send *session* dissoc :in-as)
+            "You've successfully logged out.")
+    "You're not logged in."))
+
 (defcommand "Session"
   (str @*session*))
 
@@ -133,7 +142,7 @@ specified, prints the help string and argument list for it."
   (try (execute input)
        (catch java.lang.NullPointerException _
          (when-let [in-as (:in-as @*session*)]
-           (dosync (alter users assoc-in [in-as :logged-in?] false))))))
+           (execute "/logout")))))
 
 (defn loop-handler [in out]
   (binding [*in* (reader in)
