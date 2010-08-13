@@ -64,11 +64,11 @@ specified, prints the help string and argument list for it."
                           (@help-docs))]
     (let [{:keys [help args]} cmd-entry]
       (println (if help
-                 (str "Docs:" help)
+                 (str "Docs: " help)
                  "There is no help documentation for this command."))
       (println (if args
                  (str "Args: " args)
-                 "There is no argument string for this command."))
+                 "There is no argument string for this command.")))
     (str "Commands: " (str/join " " (keys @help-docs)))))
 
 (defcommand "Register"
@@ -141,8 +141,7 @@ specified, prints the help string and argument list for it."
 (defn execute-layer [input]
   (try (execute input)
        (catch java.lang.NullPointerException _
-         (when-let [in-as (:in-as @*session*)]
-           (execute "/logout")))))
+         (execute "/logout"))))
 
 (defn loop-handler [in out]
   (binding [*in* (reader in)
