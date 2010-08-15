@@ -104,6 +104,7 @@ specified, prints the help string and argument list for it."
               {:in-as username}))))
 
 (defcommand "Say"
+  "Prints your message to all users in the specified room."
   ["room" "&" "message"]
   (let [[room words] ((juxt second nnext) (re-split #"\s+" input))
         streams (vals (@rooms room))
@@ -117,6 +118,7 @@ specified, prints the help string and argument list for it."
                     (println message))))))
 
 (defcommand "Join"
+  "Creates or joins a room."
   ["room"]
   (let [in-as (:in-as @*session*)
         [room] (command-args input 1)]
@@ -138,7 +140,9 @@ specified, prints the help string and argument list for it."
 
 (defn load-commands []
   (doseq [command (-> "commands.config" read-config :commands)]
-    (use (symbol (str "clj-chat.commands." command)))))
+    (let [prefix (str "clj-chat.commands." command)]
+      (require (symbol prefix))
+      (resolve (symbol (str prefix "/" command))))))
 
 (defn execute-layer [input]
   (try (execute input)
