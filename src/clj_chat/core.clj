@@ -17,28 +17,26 @@
   `(not (and ~@args)))
 
 (defn command-args [input n]
-  (->> input
-       (re-split #"\s+")
+  (->> (re-split #"\s+" input)
        (drop 1)
        (take n)))
 
 (defn command-str [input]
-  (->> input
-       (re-split #"\s+")
+  (->> (re-split #"\s+" input)
        (rest)
        (str/join " ")))
 
 (defn strs->help [& strs]
-  (str/join " "
-            (for [s strs]
-              (condp = s
-                "&" s
-                (str "<" s ">")))))
+  (str/join
+   " " (for [s strs]
+         (condp = s
+           "&" s
+           (str "<" s ">")))))
 
 (defmulti execute #(-> (re-split #"\s+" %)
                        (first)
                        (str/drop 1)
-                       (capitalize))
+                       (lower-case))
   :default :default)
 
 (defmacro defcommand
@@ -63,7 +61,7 @@
 (defmethod execute :default [input]
   "What?")
 
-(defcommand "Help"
+(defcommand "help"
   "Prints a list of possible commands, or if a command is
 specified, prints the help string and argument list for it."
   (if-let [cmd-entry (->> (command-args input 1)
@@ -75,7 +73,7 @@ specified, prints the help string and argument list for it."
       (println "Args:" (or args "There is no argument string for this command.")))
     (str "Commands: " (str/join " " (keys @help-docs)))))
 
-(defcommand "Register"
+(defcommand "register"
   ["username" "password"]
   (let [[username password] (command-args input 2)]
     (cond (@users username)
@@ -88,7 +86,7 @@ specified, prints the help string and argument list for it."
                  (commute users assoc username {:password password})
                  "Registration successful."))))
 
-(defcommand "Login"
+(defcommand "login"
   ["username" "password"]
   (let [[username password] (command-args input 2)]
     (cond (:in-as @*session*)
@@ -107,7 +105,7 @@ specified, prints the help string and argument list for it."
                          :sign-on (now)}))
               {:in-as username}))))
 
-(defcommand "Say"
+(defcommand "say"
   "Prints your message to all users in the specified room."
   ["room" "&" "message"]
   (let [[room words] ((juxt second nnext) (re-split #"\s+" input))
@@ -121,7 +119,7 @@ specified, prints the help string and argument list for it."
                   (binding [*out* stream]
                     (println message))))))
 
-(defcommand "Join"
+(defcommand "join"
   "Creates or joins a room."
   ["room"]
   (let [in-as (:in-as @*session*)
@@ -132,7 +130,7 @@ specified, prints the help string and argument list for it."
                  (commute rooms update-in [room] assoc in-as *out*)
                  "Successfully joined the room."))))
 
-(defcommand "Logout"
+(defcommand "logout"
   (if-let [in-as (:in-as @*session*)]
     (dosync (alter users update-in [in-as]
                    dissoc :logged-in? :sign-on :last-input)
@@ -140,7 +138,7 @@ specified, prints the help string and argument list for it."
             "You've successfully logged out.")
     "You're not logged in."))
 
-(defcommand "Whois"
+(defcommand "whois"
   (let [username (->> (re-split #"\s+" input)
                       (second))]
     (if-let [user (@users username)]
@@ -153,7 +151,7 @@ specified, prints the help string and argument list for it."
           (println-pre "Idle" (in-minutes (interval last-input (now))) "minutes")))
       "A user with that username was not found.")))
 
-(defcommand "Session"
+(defcommand "session"
   (str @*session*))
 
 (defn last-input []

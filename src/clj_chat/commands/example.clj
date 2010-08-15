@@ -4,5 +4,5 @@
 (defn example []
   (println "EXAMPLE!!"))
 
-(defcommand "Example"
+(defcommand "example"
   (example))
