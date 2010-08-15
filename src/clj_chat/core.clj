@@ -26,6 +26,13 @@
        (rest)
        (str/join " ")))
 
+(defn strs->help [& strs]
+  (->> strs
+       (map #(condp = %
+               "&" "&"
+               (str \< % \>)))
+       (str/join " ")))
+
 (defmulti execute #(-> (re-find #"^/\w+" %)
                        (str/drop 1)
                        (capitalize))
@@ -41,9 +48,7 @@
                   (next options)
                   options)
         help (if (vector? (not-empty (first options)))
-               (assoc m :args (->> (first options)
-                                   (map (fn [s] (str "<" s ">")))
-                                   (str/join " ")))
+               (assoc m :args (apply strs->help (first options)))
                m)
         body (if (vector? (first options))
                (next options)
@@ -63,12 +68,8 @@ specified, prints the help string and argument list for it."
                           (lower-case)
                           (@help-docs))]
     (let [{:keys [help args]} cmd-entry]
-      (println (if help
-                 (str "Docs: " help)
-                 "There is no help documentation for this command."))
-      (println (if args
-                 (str "Args: " args)
-                 "There is no argument string for this command.")))
+      (println "Docs:" (or help "There is no help documentation for this command."))
+      (println "Args:" (or args "There is no argument string for this command.")))
     (str "Commands: " (str/join " " (keys @help-docs)))))
 
 (defcommand "Register"
@@ -102,7 +103,7 @@ specified, prints the help string and argument list for it."
               {:in-as username}))))
 
 (defcommand "Say"
-  ["room" "message"]
+  ["room" "&" "message"]
   (let [[room words] ((juxt second nnext) (re-split #"\s+" input))
         streams (vals (@rooms room))
         message (str/join " " words)]
