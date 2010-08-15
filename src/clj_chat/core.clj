@@ -142,7 +142,7 @@ specified, prints the help string and argument list for it."
   (doseq [command (-> "commands.config" read-config :commands)]
     (let [prefix (str "clj-chat.commands." command)]
       (require (symbol prefix))
-      (resolve (symbol (str prefix "/" command))))))
+      (resolve (symbol (str prefix "/execute"))))))
 
 (defn execute-layer [input]
   (try (execute input)
