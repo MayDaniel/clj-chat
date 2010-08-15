@@ -3,7 +3,9 @@
         [clojure.java.io :only [reader writer]]
         [clojure.string :only [lower-case capitalize]]
         [clojure.contrib.str-utils :only [re-split]]
-        [clj-config.core])
+        [clj-config.core]
+        [clj-time.core :only [interval in-minutes now]]
+        [clj-time.coerce :only [to-date]])
   (:require [clojure.contrib.str-utils2 :as str]))
 
 (def users (ref {}))
@@ -100,7 +102,9 @@ specified, prints the help string and argument list for it."
           (= password (:password (@users username)))
           (do (println "Log in successful.")
               (dosync
-               (commute users assoc-in [username :logged-in?] true))
+               (commute users update-in [username] merge
+                        {:logged-in? true
+                         :sign-on (now)}))
               {:in-as username}))))
 
 (defcommand "Say"
@@ -130,13 +134,32 @@ specified, prints the help string and argument list for it."
 
 (defcommand "Logout"
   (if-let [in-as (:in-as @*session*)]
-    (dosync (alter users assoc-in [in-as :logged-in?] false)
+    (dosync (alter users update-in [in-as]
+                   dissoc :logged-in? :sign-on :last-input)
             (send *session* dissoc :in-as)
             "You've successfully logged out.")
     "You're not logged in."))
 
+(defcommand "Whois"
+  (let [username (->> (re-split #"\s+" input)
+                      (second))]
+    (if-let [user (@users username)]
+      (let [{:keys [sign-on last-input]} user
+            println-pre #(apply println (str username ":") %&)]
+        (println-pre "WHOIS")
+        (when sign-on
+          (println-pre "Sign on" (subs (str (to-date sign-on)) 0 19)))
+        (when last-input
+          (println-pre "Idle" (in-minutes (interval last-input (now))) "minutes")))
+      "A user with that username was not found.")))
+
 (defcommand "Session"
   (str @*session*))
+
+(defn last-input []
+  (when-let [in-as (:in-as @*session*)]
+    (dosync (commute users assoc-in [in-as :last-input]
+                     (now)))))
 
 (defn load-commands []
   (doseq [command (-> "commands.config" read-config :commands)]
@@ -154,6 +177,7 @@ specified, prints the help string and argument list for it."
             *out* (writer out)
             *session* (agent {})]
     (loop [input (read-line)]
+      (last-input)
       (let [output (execute-layer input)]
         (cond (map? output)
               (dosync (send *session* merge output))
