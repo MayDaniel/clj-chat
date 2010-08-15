@@ -27,13 +27,14 @@
        (str/join " ")))
 
 (defn strs->help [& strs]
-  (->> strs
-       (map #(condp = %
-               "&" "&"
-               (str \< % \>)))
-       (str/join " ")))
+  (str/join " "
+            (for [s strs]
+              (condp = s
+                "&" s
+                (str "<" s ">")))))
 
-(defmulti execute #(-> (re-find #"^/\w+" %)
+(defmulti execute #(-> (re-split #"\s+" %)
+                       (first)
                        (str/drop 1)
                        (capitalize))
   :default :default)
