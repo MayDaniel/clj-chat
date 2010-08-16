@@ -152,13 +152,14 @@ specified, prints the help string and argument list for it."
       (let [{:keys [sign-on last-input]} user
             pre #(apply println (str username ":") %&)]
         (pre "WHOIS")
-        (do-when
-         sign-on
-         (pre "Sign on" (subs (str (to-date sign-on)) 0 19))
-         last-input
-         (apply pre (cons "Idle" (interleave ((juxt in-minutes in-secs)
-                                              (interval last-input (now)))
-                                             ["minutes" "seconds"])))))
+        (do-when sign-on
+                 (pre "Sign on" (subs (str (to-date sign-on)) 0 19))
+                 last-input
+                 (->> ["minutes" "seconds"]
+                       (interleave ((juxt in-minutes in-secs)
+                                    (interval last-input (now))))
+                       (cons "Idle")
+                       (apply pre))))
       "A user with that username was not found.")))
 
 (defcommand "session"
