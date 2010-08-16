@@ -4,7 +4,7 @@
         [clojure.string :only [lower-case capitalize]]
         [clojure.contrib.str-utils :only [re-split]]
         [clj-config.core]
-        [clj-time.core :only [interval in-minutes now]]
+        [clj-time.core :only [interval in-minutes in-secs now]]
         [clj-time.coerce :only [to-date]])
   (:require [clojure.contrib.str-utils2 :as str]))
 
@@ -13,13 +13,19 @@
 (def help-docs (ref {}))
 (declare *session*)
 
+(defmacro do-when [& clauses]
+  `(do ~@(loop [clauses clauses acc []]
+           (if-not (seq clauses) acc
+                   (recur (nnext clauses)
+                          (conj acc (list 'when (first clauses)
+                                          (second clauses))))))))
+
 (defmacro not-and [& args]
   `(not (and ~@args)))
 
-(defn command-args [input n]
-  (->> (re-split #"\s+" input)
-       (drop 1)
-       (take n)))
+(defn command-args
+  ([input] (drop 1 (re-split #"\s+" input)))
+  ([input n] (take n (command-args input))))
 
 (defn command-str [input]
   (->> (re-split #"\s+" input)
@@ -28,10 +34,9 @@
 
 (defn strs->help [& strs]
   (str/join
-   " " (for [s strs]
-         (condp = s
-           "&" s
-           (str "<" s ">")))))
+   " " (map #(condp = %
+               "&" "&"
+               (str "<" % ">")) strs)))
 
 (defmulti execute #(-> (re-split #"\s+" %)
                        (first)
@@ -139,16 +144,18 @@ specified, prints the help string and argument list for it."
     "You're not logged in."))
 
 (defcommand "whois"
-  (let [username (->> (re-split #"\s+" input)
-                      (second))]
+  (let [[username] (command-args input 1)]
     (if-let [user (@users username)]
       (let [{:keys [sign-on last-input]} user
-            println-pre #(apply println (str username ":") %&)]
-        (println-pre "WHOIS")
-        (when sign-on
-          (println-pre "Sign on" (subs (str (to-date sign-on)) 0 19)))
-        (when last-input
-          (println-pre "Idle" (in-minutes (interval last-input (now))) "minutes")))
+            pre #(apply println (str username ":") %&)]
+        (pre "WHOIS")
+        (do-when
+         sign-on
+         (pre "Sign on" (subs (str (to-date sign-on)) 0 19))
+         last-input
+         (apply pre (cons "Idle" (interleave ((juxt in-minutes in-secs)
+                                              (interval last-input (now)))
+                                             ["minutes" "seconds"])))))
       "A user with that username was not found.")))
 
 (defcommand "session"
