@@ -15,10 +15,13 @@
 
 (defmacro do-when [& clauses]
   `(do ~@(loop [clauses clauses acc []]
-           (if-not (seq clauses) acc
-                   (recur (nnext clauses)
-                          (conj acc (list 'when (first clauses)
-                                          (second clauses))))))))
+           (cond (not (seq clauses)) acc
+                 (not (next clauses))
+                 (throw (IllegalArgumentException.
+                         "do-when requires an even number of forms."))
+                 :else (recur (nnext clauses)
+                              (conj acc (list 'when (first clauses)
+                                              (second clauses))))))))
 
 (defmacro not-and [& args]
   `(not (and ~@args)))
@@ -122,7 +125,7 @@ specified, prints the help string and argument list for it."
           "A channel with that name does not exist, or contains no users."
           :else (doseq [stream streams]
                   (binding [*out* stream]
-                    (println message))))))
+                    (println (str room ":") message))))))
 
 (defcommand "join"
   "Creates or joins a room."
