@@ -35,16 +35,12 @@
        (rest)
        (str/join " ")))
 
-(defn strs->help [& strs]
-  (str/join
-   " " (map #(condp = %
-               "&" "&"
-               (str "<" % ">")) strs)))
+(defn str->help [s]
+  (condp = s
+    "&" "&"
+    (str "<" s ">")))
 
-(defmulti execute #(-> (re-split #"\s+" %)
-                       (first)
-                       (str/drop 1)
-                       (lower-case))
+(defmulti execute #(-> (re-split #"\s+" %) first (str/drop 1) lower-case)
   :default :default)
 
 (defmacro defcommand
@@ -57,7 +53,7 @@
                   (next options)
                   options)
         help (if (vector? (not-empty (first options)))
-               (assoc m :args (apply strs->help (first options)))
+               (assoc m :args (str/join " " (map str->help (first options))))
                m)
         body (if (vector? (first options))
                (next options)
@@ -116,7 +112,7 @@ specified, prints the help string and argument list for it."
 (defcommand "say"
   "Prints your message to all users in the specified room."
   ["room" "&" "message"]
-  (let [[room words] ((juxt second nnext) (re-split #"\s+" input))
+  (let [[_ room & words] (re-split #"\s+" input)
         streams (vals (@rooms room))
         message (str/join " " words)]
     (cond (not (:in-as @*session*))
@@ -167,8 +163,7 @@ specified, prints the help string and argument list for it."
 
 (defn last-input []
   (when-let [in-as (:in-as @*session*)]
-    (dosync (commute users assoc-in [in-as :last-input]
-                     (now)))))
+    (dosync (commute users assoc-in [in-as :last-input] (now)))))
 
 (defn load-commands []
   (doseq [command (-> "commands.config" read-config :commands)]
