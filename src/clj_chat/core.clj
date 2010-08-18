@@ -1,9 +1,9 @@
 (ns clj-chat.core
   (:use [clojure.contrib.server-socket :only [create-server]]
         [clojure.java.io :only [reader writer]]
-        [clojure.string :only [lower-case capitalize]]
+        [clojure.string :only [lower-case capitalize join]]
         [clojure.contrib.str-utils :only [re-split]]
-        [clj-config.core]
+        [clj-config.core :only [read-config]]
         [clj-time.core :only [interval in-minutes in-secs now]]
         [clj-time.coerce :only [to-date]])
   (:require [clojure.contrib.str-utils2 :as str]))
@@ -33,7 +33,7 @@
 (defn command-str [input]
   (->> (re-split #"\s+" input)
        (rest)
-       (str/join " ")))
+       (join " ")))
 
 (defn str->help [s]
   (condp = s
@@ -53,7 +53,7 @@
                   (next options)
                   options)
         help (if (vector? (not-empty (first options)))
-               (assoc m :args (str/join " " (map str->help (first options))))
+               (assoc m :args (join " " (map str->help (first options))))
                m)
         body (if (vector? (first options))
                (next options)
@@ -75,7 +75,7 @@ specified, prints the help string and argument list for it."
     (let [{:keys [help args]} cmd-entry]
       (println "Docs:" (or help "There is no help documentation for this command."))
       (println "Args:" (or args "There is no argument string for this command.")))
-    (str "Commands: " (str/join " " (keys @help-docs)))))
+    (str "Commands: " (join " " (keys @help-docs)))))
 
 (defcommand "register"
   ["username" "password"]
@@ -86,9 +86,8 @@ specified, prints the help string and argument list for it."
           "You must specify a username and password."
           (not-every? #(re-find #"^[a-zA-Z0-9_]{3,12}$" %) [username password])
           "Invalid username/password."
-          :else (dosync
-                 (commute users assoc username {:password password})
-                 "Registration successful."))))
+          :else (dosync (commute users assoc username {:password password})
+                        "Registration successful."))))
 
 (defcommand "login"
   ["username" "password"]
@@ -102,19 +101,17 @@ specified, prints the help string and argument list for it."
           (:logged-in? (@users username))
           "This user is already logged in."
           (= password (:password (@users username)))
-          (do (println "Log in successful.")
-              (dosync
-               (commute users update-in [username] merge
-                        {:logged-in? true
-                         :sign-on (now)}))
-              {:in-as username}))))
+          (do (println "Log in successful")
+              (dosync (commute users update-in [username] merge
+                               {:logged-in? true :sign-on (now)})
+                      {:in-as username})))))
 
 (defcommand "say"
   "Prints your message to all users in the specified room."
   ["room" "&" "message"]
   (let [[_ room & words] (re-split #"\s+" input)
         streams (vals (@rooms room))
-        message (str/join " " words)]
+        message (join " " words)]
     (cond (not (:in-as @*session*))
           "You must be logged in to talk."
           (not streams)
@@ -126,13 +123,11 @@ specified, prints the help string and argument list for it."
 (defcommand "join"
   "Creates or joins a room."
   ["room"]
-  (let [in-as (:in-as @*session*)
-        [room] (command-args input 1)]
-    (cond (not in-as)
-          "You must be logged in to join rooms."
-          :else (dosync
-                 (commute rooms update-in [room] assoc in-as *out*)
-                 "Successfully joined the room."))))
+  (if-let [in-as (:in-as @*session*)]
+    (dosync (commute rooms update-in [(command-args input 1)]
+                     assoc in-as *out*)
+            "Successfully joined the room.")
+    "You must be logged in to join rooms."))
 
 (defcommand "logout"
   (if-let [in-as (:in-as @*session*)]
@@ -176,13 +171,16 @@ specified, prints the help string and argument list for it."
        (catch java.lang.NullPointerException _
          (execute "/logout"))))
 
+(defn prompt []
+  (print "=> ") (read-line))
+
 (defn loop-handler [in out]
   (binding [*in* (reader in)
             *out* (writer out)
             *session* (agent {})]
     (loop [input (read-line)]
-      (last-input)
       (let [output (execute-layer input)]
+        (last-input)
         (cond (map? output)
               (dosync (send *session* merge output))
               (string? output)
