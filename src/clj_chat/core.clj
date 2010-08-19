@@ -106,19 +106,26 @@ specified, prints the help string and argument list for it."
                                {:logged-in? true :sign-on (now)})
                       {:in-as username})))))
 
+(defn print-message [room user message]
+  (println (str "[" (-> (now) (str) (subs 11 19)) "]"
+                "[" room "]"
+                (str/repeat " " (- 12 (count user)))
+                user ": " message)))
+
 (defcommand "say"
   "Prints your message to all users in the specified room."
   ["room" "&" "message"]
   (let [[_ room & words] (re-split #"\s+" input)
         streams (vals (@rooms room))
-        message (join " " words)]
-    (cond (not (:in-as @*session*))
+        message (join " " words)
+        in-as (:in-as @*session*)]
+    (cond (not in-as)
           "You must be logged in to talk."
           (not streams)
           "A channel with that name does not exist, or contains no users."
           :else (doseq [stream streams]
                   (binding [*out* stream]
-                    (println (str room ":") message))))))
+                    (print-message room in-as message))))))
 
 (defcommand "join"
   "Creates or joins a room."
