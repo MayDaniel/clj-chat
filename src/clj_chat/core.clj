@@ -124,7 +124,7 @@ specified, prints the help string and argument list for it."
   "Creates or joins a room."
   ["room"]
   (if-let [in-as (:in-as @*session*)]
-    (dosync (commute rooms update-in [(command-args input 1)]
+    (dosync (commute rooms update-in (command-args input 1)
                      assoc in-as *out*)
             "Successfully joined the room.")
     "You must be logged in to join rooms."))
@@ -170,9 +170,6 @@ specified, prints the help string and argument list for it."
   (try (execute input)
        (catch java.lang.NullPointerException _
          (execute "/logout"))))
-
-(defn prompt []
-  (print "=> ") (read-line))
 
 (defn loop-handler [in out]
   (binding [*in* (reader in)
