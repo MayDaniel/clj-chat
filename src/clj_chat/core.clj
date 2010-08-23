@@ -32,15 +32,13 @@
 
 (defn command-str [input]
   (->> (re-split #"\s+" input)
-       (rest)
-       (join " ")))
+       (rest) (join " ")))
 
 (defn str->help [s]
-  (condp = s
-    "&" "&"
-    (str "<" s ">")))
+  (case s "&" "&" (str "<" s ">")))
 
-(defmulti execute #(-> (re-split #"\s+" %) first (str/drop 1) lower-case)
+(defmulti execute #(-> (re-split #"\s+" %)
+                       (first) (str/drop 1) (lower-case))
   :default :default)
 
 (defmacro defcommand
@@ -58,7 +56,7 @@
         body (if (vector? (first options))
                (next options)
                options)]
-    (dosync (alter help-docs assoc (lower-case cmd) help))
+    (dosync (commute help-docs assoc (lower-case cmd) help))
     `(defmethod execute ~cmd [~'input]
        ~@body)))
 
@@ -69,9 +67,7 @@
   "Prints a list of possible commands, or if a command is
 specified, prints the help string and argument list for it."
   (if-let [cmd-entry (->> (command-args input 1)
-                          (apply str)
-                          (lower-case)
-                          (@help-docs))]
+                          (apply str) (lower-case) (@help-docs))]
     (let [{:keys [help args]} cmd-entry]
       (println "Docs:" (or help "There is no help documentation for this command."))
       (println "Args:" (or args "There is no argument string for this command.")))
@@ -107,7 +103,7 @@ specified, prints the help string and argument list for it."
                       {:in-as username})))))
 
 (defn print-message [room user message]
-  (println (str "[" (-> (now) (str) (subs 11 19)) "]"
+  (println (str "(" (-> (now) (str) (subs 11 19)) ")"
                 "[" room "]"
                 (str/repeat " " (- 12 (count user)))
                 user ": " message)))
@@ -138,9 +134,9 @@ specified, prints the help string and argument list for it."
 
 (defcommand "logout"
   (if-let [in-as (:in-as @*session*)]
-    (dosync (alter users update-in [in-as]
-                   dissoc :logged-in? :sign-on :last-input)
-            (send *session* dissoc :in-as)
+    (dosync (commute users update-in [in-as] dissoc
+                     :logged-in? :sign-on :last-input)
+            (send-off *session* dissoc :in-as)
             "You've successfully logged out.")
     "You're not logged in."))
 
@@ -186,7 +182,7 @@ specified, prints the help string and argument list for it."
       (let [output (execute-layer input)]
         (last-input)
         (cond (map? output)
-              (dosync (send *session* merge output))
+              (dosync (send-off *session* merge output))
               (string? output)
               (println output)))
       (recur (read-line)))))
