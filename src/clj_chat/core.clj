@@ -11,7 +11,7 @@
 (def users (ref {}))
 (def rooms (ref {}))
 (def help-docs (ref {}))
-(declare *session*)
+(def *session*)
 
 (defmacro do-when [& clauses]
   `(do ~@(loop [clauses clauses acc []]
@@ -134,11 +134,11 @@ specified, prints the help string and argument list for it."
 
 (defcommand "logout"
   (if-let [in-as (:in-as @*session*)]
-    (dosync (commute users update-in [in-as] dissoc
-                     :logged-in? :sign-on :last-input)
-            (send-off *session* dissoc :in-as)
-            "You've successfully logged out.")
-    "You're not logged in."))
+    (do (dosync (commute users update-in [in-as] dissoc
+                         :logged-in? :sign-on :last-input))
+        (send-off *session* dissoc :in-as)
+        "You've successfully logged out.")
+  "You're not logged in."))
 
 (defcommand "whois"
   (let [[username] (command-args input 1)]
@@ -150,10 +150,10 @@ specified, prints the help string and argument list for it."
                  (pre "Sign on" (subs (str (to-date sign-on)) 0 19))
                  last-input
                  (->> ["minutes" "seconds"]
-                       (interleave ((juxt in-minutes in-secs)
-                                    (interval last-input (now))))
-                       (cons "Idle")
-                       (apply pre))))
+                      (interleave ((juxt in-minutes in-secs)
+                                   (interval last-input (now))))
+                      (cons "Idle")
+                      (apply pre))))
       "A user with that username was not found.")))
 
 (defcommand "session"
@@ -182,7 +182,7 @@ specified, prints the help string and argument list for it."
       (let [output (execute-layer input)]
         (last-input)
         (cond (map? output)
-              (dosync (send-off *session* merge output))
+              (send-off *session* merge output)
               (string? output)
               (println output)))
       (recur (read-line)))))
