@@ -27,12 +27,8 @@
   (not-every? identity xs))
 
 (defn command-args
-  ([input] (drop 1 (re-split #"\s+" input)))
+  ([input] (re-split #"\s+" input))
   ([input n] (take n (command-args input))))
-
-(defn command-str [input]
-  (->> (re-split #"\s+" input)
-       (rest) (join " ")))
 
 (defn str->help [s]
   (case s "&" "&" (str "<" s ">")))
@@ -56,9 +52,12 @@
         body (if (vector? (first options))
                (next options)
                options)]
-    (dosync (commute help-docs assoc (lower-case cmd) help))
-    `(defmethod execute ~cmd [~'input]
-       ~@body)))
+    (dosync (alter help-docs assoc (lower-case cmd) help))
+    `(defmethod execute ~cmd
+       [~'input]
+       (let [~'input (->> (re-split #"\s+" ~'input)
+                          (drop 1) (join " "))]
+         ~@body))))
 
 (defmethod execute :default [input]
   "What?")
@@ -66,8 +65,7 @@
 (defcommand "help"
   "Prints a list of possible commands, or if a command is
 specified, prints the help string and argument list for it."
-  (if-let [cmd-entry (->> (command-args input 1)
-                          (apply str) (lower-case) (@help-docs))]
+  (if-let [cmd-entry (->> (command-args input 1) (apply lower-case) (@help-docs))]
     (let [{:keys [help args]} cmd-entry]
       (println "Docs:" (or help "There is no help documentation for this command."))
       (println "Args:" (or args "There is no argument string for this command.")))
@@ -82,8 +80,8 @@ specified, prints the help string and argument list for it."
           "You must specify a username and password."
           (not-every? #(re-find #"^[a-zA-Z0-9_]{3,12}$" %) [username password])
           "Invalid username/password."
-          :else (dosync (commute users assoc username {:password password})
-                        "Registration successful."))))
+          :else (do (dosync (alter users assoc username {:password password}))
+                    "Registration successful."))))
 
 (defcommand "login"
   ["username" "password"]
@@ -97,7 +95,7 @@ specified, prints the help string and argument list for it."
           (:logged-in? (@users username))
           "This user is already logged in."
           (= password (:password (@users username)))
-          (do (dosync (commute users update-in [username] assoc
+          (do (dosync (alter users update-in [username] assoc
                                :logged-in? true :sign-on (now))
                       (send-off *session* assoc :in-as username))
               "Log in successful."))))
@@ -111,7 +109,7 @@ specified, prints the help string and argument list for it."
 (defcommand "say"
   "Prints your message to all users in the specified room."
   ["room" "&" "message"]
-  (let [[_ room & words] (re-split #"\s+" input)
+  (let [[room & words] (re-split #"\s+" input)
         streams (vals (@rooms room))
         message (join " " words)
         in-as (:in-as @*session*)]
@@ -127,9 +125,9 @@ specified, prints the help string and argument list for it."
   "Creates or joins a room."
   ["room"]
   (if-let [in-as (:in-as @*session*)]
-    (dosync (commute rooms update-in (command-args input 1)
-                     assoc in-as *out*)
-            "Successfully joined the room.")
+    (do (dosync
+         (alter rooms update-in (command-args input 1) assoc in-as *out*))
+        "Successfully joined the room.")
     "You must be logged in to join rooms."))
 
 (defcommand "logout"
@@ -143,6 +141,7 @@ specified, prints the help string and argument list for it."
   "You're not logged in."))
 
 (defcommand "whois"
+  ["user"]
   (let [[username] (command-args input 1)]
     (if-let [user (@users username)]
       (let [{:keys [sign-on last-input]} user
