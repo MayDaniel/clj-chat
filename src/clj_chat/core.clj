@@ -33,11 +33,13 @@
 (defn str->help [s]
   (case s "&" "&" (str "<" s ">")))
 
-(defn m-assoc-in
-  ([map [& ks] key val] (update-in map ks assoc key val))
-  ([map [& ks] key val & kvs]
-     (reduce (fn [m [k v]] (m-assoc-in m ks k v)) map
-             (partition 2 (concat [key val] kvs)))))
+(defn m-assoc-in [map [& ks] & key-vals]
+  (update-in
+   map ks merge
+   (loop [[key val & kvs] key-vals tmap (transient {})]
+     (cond val (recur kvs (assoc! tmap key val))
+           key (throw (IllegalArgumentException. "Odd number of keys/vals."))
+           :else (persistent! tmap)))))
 
 (defn dissoc-in
   ([map [& ks] key] (update-in map ks dissoc key))
