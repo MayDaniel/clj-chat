@@ -97,10 +97,10 @@ specified, prints the help string and argument list for it."
           (:logged-in? (@users username))
           "This user is already logged in."
           (= password (:password (@users username)))
-          (do (println "Log in successful")
-              (dosync (commute users update-in [username] merge
-                               {:logged-in? true :sign-on (now)})
-                      {:in-as username})))))
+          (do (dosync (commute users update-in [username] assoc
+                               :logged-in? true :sign-on (now))
+                      (send-off *session* assoc :in-as username))
+              "Log in successful."))))
 
 (defn print-message [room user message]
   (println (str "(" (-> (now) (str) (subs 11 19)) ")"
@@ -137,8 +137,8 @@ specified, prints the help string and argument list for it."
     (do (dosync (alter users update-in [in-as] dissoc
                          :logged-in? :sign-on :last-input)
                 (doseq [[room users] @rooms :when (contains? users in-as)]
-                  (alter rooms update-in [room] dissoc in-as)))
-        (send-off *session* dissoc :in-as)
+                  (alter rooms update-in [room] dissoc in-as))
+                (send-off *session* dissoc :in-as))
         "You've successfully logged out.")
   "You're not logged in."))
 
@@ -183,9 +183,7 @@ specified, prints the help string and argument list for it."
     (loop [input (read-line)]
       (let [output (execute-layer input)]
         (last-input)
-        (cond (map? output)
-              (send-off *session* merge output)
-              (string? output)
+        (cond (string? output)
               (println output)))
       (recur (read-line)))))
 
