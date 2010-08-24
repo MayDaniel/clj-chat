@@ -166,7 +166,7 @@ specified, prints the help string and argument list for it."
 
 (defn load-commands []
   (doseq [command (-> "commands.config" in :commands)]
-    (let [prefix (str "clj-chat.commands." command)]
+    (let [prefix (str "clj-chat.plugins." command)]
       (require (symbol prefix))
       (resolve (symbol (str prefix "/execute"))))))
 
