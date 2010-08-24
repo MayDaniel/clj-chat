@@ -3,7 +3,7 @@
         [clojure.java.io :only [reader writer]]
         [clojure.string :only [lower-case capitalize join]]
         [clojure.contrib.str-utils :only [re-split]]
-        [clj-config.core :only [read-config]]
+        [clj-store.core :only [in]]
         [clj-time.core :only [interval in-minutes in-secs now]]
         [clj-time.coerce :only [to-date]])
   (:require [clojure.contrib.str-utils2 :as str]))
@@ -23,8 +23,8 @@
                               (conj acc (list 'when (first clauses)
                                               (second clauses))))))))
 
-(defmacro not-and [& args]
-  `(not (and ~@args)))
+(defn not-truthy? [& xs]
+  (not-every? identity xs))
 
 (defn command-args
   ([input] (drop 1 (re-split #"\s+" input)))
@@ -78,7 +78,7 @@ specified, prints the help string and argument list for it."
   (let [[username password] (command-args input 2)]
     (cond (@users username)
           "A user with that name already exists."
-          (not-and username password)
+          (not-truthy? username password)
           "You must specify a username and password."
           (not-every? #(re-find #"^[a-zA-Z0-9_]{3,12}$" %) [username password])
           "Invalid username/password."
@@ -90,7 +90,7 @@ specified, prints the help string and argument list for it."
   (let [[username password] (command-args input 2)]
     (cond (:in-as @*session*)
           "You are already logged in. Use command /logout to log in as this user."
-          (not-and username password)
+          (not-truthy? username password)
           "You must specify a username and password."
           (not (@users username))
           "That user does not exist."
@@ -134,8 +134,10 @@ specified, prints the help string and argument list for it."
 
 (defcommand "logout"
   (if-let [in-as (:in-as @*session*)]
-    (do (dosync (commute users update-in [in-as] dissoc
-                         :logged-in? :sign-on :last-input))
+    (do (dosync (alter users update-in [in-as] dissoc
+                         :logged-in? :sign-on :last-input)
+                (doseq [[room users] @rooms :when (contains? users in-as)]
+                  (alter rooms update-in [room] dissoc in-as)))
         (send-off *session* dissoc :in-as)
         "You've successfully logged out.")
   "You're not logged in."))
@@ -164,7 +166,7 @@ specified, prints the help string and argument list for it."
     (dosync (commute users assoc-in [in-as :last-input] (now)))))
 
 (defn load-commands []
-  (doseq [command (-> "commands.config" read-config :commands)]
+  (doseq [command (-> "commands.config" in :commands)]
     (let [prefix (str "clj-chat.commands." command)]
       (require (symbol prefix))
       (resolve (symbol (str prefix "/execute"))))))
@@ -188,5 +190,5 @@ specified, prints the help string and argument list for it."
       (recur (read-line)))))
 
 (defn -main []
-  (load-commands)
+  #_(load-commands)
   (defonce server (create-server 3333 loop-handler)))
