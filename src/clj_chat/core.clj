@@ -1,12 +1,13 @@
 (ns clj-chat.core
+  (:refer-clojure :exclude [assoc-in])
+  (:require [clojure.contrib.str-utils2 :as str])
   (:use [clojure.contrib.server-socket :only [create-server]]
         [clojure.java.io :only [reader writer]]
         [clojure.string :only [lower-case capitalize join]]
         [clojure.contrib.str-utils :only [re-split]]
         [clj-store.core :only [in]]
         [clj-time.core :only [interval in-minutes in-secs now]]
-        [clj-time.coerce :only [to-date]])
-  (:require [clojure.contrib.str-utils2 :as str]))
+        [clj-time.coerce :only [to-date]]))
 
 (def users (ref {}))
 (def rooms (ref {}))
@@ -33,7 +34,7 @@
 (defn str->help [s]
   (case s "&" "&" (str "<" s ">")))
 
-(defn m-assoc-in [map [& ks] & key-vals]
+(defn assoc-in [map [& ks] & key-vals]
   (update-in
    map ks merge
    (loop [[key val & kvs] key-vals tmap (transient {})]
@@ -110,7 +111,7 @@ specified, prints the help string and argument list for it."
           (:logged-in? (@users username))
           "This user is already logged in."
           (= password (:password (@users username)))
-          (do (dosync (alter users m-assoc-in [username] :logged-in? true :sign-on (now))
+          (do (dosync (alter users assoc-in [username] :logged-in? true :sign-on (now))
                       (send-off *session* assoc :in-as username))
               "Log in successful."))))
 
@@ -139,7 +140,7 @@ specified, prints the help string and argument list for it."
   "Creates or joins a room."
   ["room"]
   (if-let [in-as (:in-as @*session*)]
-    (do (dosync (alter rooms m-assoc-in (command-args input 1) in-as *out*))
+    (do (dosync (alter rooms assoc-in (command-args input 1) in-as *out*))
         "Successfully joined the room.")
     "You must be logged in to join rooms."))
 
