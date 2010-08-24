@@ -33,22 +33,35 @@
 (defn str->help [s]
   (case s "&" "&" (str "<" s ">")))
 
-(defmulti execute #(-> (re-split #"\s+" %)
-                       (first) (str/drop 1) (lower-case))
+(defn m-assoc-in
+  ([map [& ks] key val] (update-in map ks assoc key val))
+  ([map [& ks] key val & kvs]
+     (reduce (fn [m [k v]] (m-assoc-in m ks k v)) map
+             (partition 2 (concat [key val] kvs)))))
+
+(defn dissoc-in
+  ([map [& ks] key] (update-in map ks dissoc key))
+  ([map [& ks] key & keys]
+     (reduce (fn [m k] (dissoc-in m ks k)) map
+             (concat [key] keys))))
+
+(defmulti execute (fn [input]
+                    (-> (re-split #"\s+" input)
+                        (first) (str/drop 1) (lower-case)))
   :default :default)
 
 (defmacro defcommand
   {:arglists '([cmd help-string? help-args? & fn-tail])}
   [cmd & options]
-  (let [m (if (string? (first options))
-            {:help (first options)}
-            {})
+  (let [help-map (if (string? (first options))
+                   {:help (first options)}
+                   {})
         options (if (string? (first options))
                   (next options)
                   options)
         help (if (vector? (not-empty (first options)))
-               (assoc m :args (join " " (map str->help (first options))))
-               m)
+               (assoc help-map :args (join " " (map str->help (first options))))
+               help-map)
         body (if (vector? (first options))
                (next options)
                options)]
@@ -95,8 +108,7 @@ specified, prints the help string and argument list for it."
           (:logged-in? (@users username))
           "This user is already logged in."
           (= password (:password (@users username)))
-          (do (dosync (alter users update-in [username] assoc
-                               :logged-in? true :sign-on (now))
+          (do (dosync (alter users m-assoc-in [username] :logged-in? true :sign-on (now))
                       (send-off *session* assoc :in-as username))
               "Log in successful."))))
 
@@ -125,17 +137,15 @@ specified, prints the help string and argument list for it."
   "Creates or joins a room."
   ["room"]
   (if-let [in-as (:in-as @*session*)]
-    (do (dosync
-         (alter rooms update-in (command-args input 1) assoc in-as *out*))
+    (do (dosync (alter rooms m-assoc-in (command-args input 1) in-as *out*))
         "Successfully joined the room.")
     "You must be logged in to join rooms."))
 
 (defcommand "logout"
   (if-let [in-as (:in-as @*session*)]
-    (do (dosync (alter users update-in [in-as] dissoc
-                         :logged-in? :sign-on :last-input)
+    (do (dosync (alter users dissoc-in [in-as] :logged-in? :sign-on :last-input)
                 (doseq [[room users] @rooms :when (contains? users in-as)]
-                  (alter rooms update-in [room] dissoc in-as))
+                  (alter rooms dissoc-in [room] in-as))
                 (send-off *session* dissoc :in-as))
         "You've successfully logged out.")
   "You're not logged in."))
