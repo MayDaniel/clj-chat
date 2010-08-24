@@ -187,5 +187,5 @@ specified, prints the help string and argument list for it."
       (recur (read-line)))))
 
 (defn -main []
-  #_(load-commands)
+  (load-commands)
   (defonce server (create-server 3333 loop-handler)))
