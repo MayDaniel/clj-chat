@@ -109,10 +109,11 @@ specified, prints the help string and argument list for it."
         "That user does not exist."
         (:logged-in? (@users username))
         "This user is already logged in."
-        (= password (:password (@users username)))
-        (do (dosync (alter users assoc-in [username] :logged-in? true :sign-on (now))
-                    (send-off *session* assoc :in-as username))
-            "Log in successful.")))
+        (not= password (:password (@users username)))
+        "Incorrect password."
+        :else (do (dosync (alter users assoc-in [username] :logged-in? true :sign-on (now))
+                          (send-off *session* assoc :in-as username))
+                  "Log in successful.")))
 
 (defcommand Say
   "Prints your message to all users in the specified room."
