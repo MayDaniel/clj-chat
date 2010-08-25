@@ -27,10 +27,6 @@
 (defn not-truthy? [& xs]
   (not-every? identity xs))
 
-(defn command-args
-  ([input] (re-split #"\s+" input))
-  ([input n] (take n (command-args input))))
-
 (defn str->help [s]
   (case s "&" "&" (str "<" s ">")))
 
@@ -56,23 +52,21 @@
 (defmacro defcommand
   {:arglists '([cmd help-string? help-args? & fn-tail])}
   [cmd & options]
-  (let [help-map (if (string? (first options))
-                   {:help (first options)}
-                   {})
+  (let [cmd (lower-case cmd)
+        help-map (if (string? (first options))
+                   {:help (first options)} {})
         options (if (string? (first options))
-                  (next options)
-                  options)
-        help (if (vector? (not-empty (first options)))
-               (assoc help-map :args (join " " (map str->help (first options))))
-               help-map)
+                  (next options) options)
+        args (when (vector? (not-empty (first options)))
+               (first options))
+        help-map (if args
+                   (assoc help-map :args (join " " args)) help-map)
         body (if (vector? (first options))
-               (next options)
-               options)]
-    (dosync (alter help-docs assoc (lower-case cmd) help))
+               (next options) options)]
+    (dosync (alter help-docs assoc cmd help-map))
     `(defmethod execute ~cmd
        [~'input]
-       (let [~'input (->> (re-split #"\s+" ~'input)
-                          (drop 1) (join " "))]
+       (let [[~'_ ~@args] (re-split #"\s+" input)]
          ~@body))))
 
 (defmethod execute :default [input]
@@ -81,39 +75,38 @@
 (defcommand "help"
   "Prints a list of possible commands, or if a command is
 specified, prints the help string and argument list for it."
-  (if-let [cmd-entry (->> (command-args input 1) (apply lower-case) (@help-docs))]
+  [command]
+  (if-let [cmd-entry (@help-docs command)]
     (let [{:keys [help args]} cmd-entry]
       (println "Docs:" (or help "There is no help documentation for this command."))
       (println "Args:" (or args "There is no argument string for this command.")))
     (str "Commands: " (join " " (keys @help-docs)))))
 
 (defcommand "register"
-  ["username" "password"]
-  (let [[username password] (command-args input 2)]
-    (cond (@users username)
-          "A user with that name already exists."
-          (not-truthy? username password)
-          "You must specify a username and password."
-          (not-every? #(re-find #"^[a-zA-Z0-9_]{3,12}$" %) [username password])
-          "Invalid username/password."
-          :else (do (dosync (alter users assoc username {:password password}))
-                    "Registration successful."))))
+  [username password]
+  (cond (@users username)
+        "A user with that name already exists."
+        (not-truthy? username password)
+        "You must specify a username and password."
+        (not-every? #(re-find #"^[a-zA-Z0-9_]{3,12}$" %) [username password])
+        "Invalid username/password."
+        :else (do (dosync (alter users assoc username {:password password}))
+                  "Registration successful.")))
 
 (defcommand "login"
-  ["username" "password"]
-  (let [[username password] (command-args input 2)]
-    (cond (:in-as @*session*)
-          "You are already logged in. Use command /logout to log in as this user."
-          (not-truthy? username password)
-          "You must specify a username and password."
-          (not (@users username))
-          "That user does not exist."
-          (:logged-in? (@users username))
-          "This user is already logged in."
-          (= password (:password (@users username)))
-          (do (dosync (alter users assoc-in [username] :logged-in? true :sign-on (now))
-                      (send-off *session* assoc :in-as username))
-              "Log in successful."))))
+  [username password]
+  (cond (:in-as @*session*)
+        "You are already logged in. Use command /logout to log in as this user."
+        (not-truthy? username password)
+        "You must specify a username and password."
+        (not (@users username))
+        "That user does not exist."
+        (:logged-in? (@users username))
+        "This user is already logged in."
+        (= password (:password (@users username)))
+        (do (dosync (alter users assoc-in [username] :logged-in? true :sign-on (now))
+                    (send-off *session* assoc :in-as username))
+            "Log in successful.")))
 
 (defn print-message [room user message]
   (println (str "(" (-> (now) (str) (subs 11 19)) ")"
@@ -123,10 +116,9 @@ specified, prints the help string and argument list for it."
 
 (defcommand "say"
   "Prints your message to all users in the specified room."
-  ["room" "&" "message"]
-  (let [[room & words] (re-split #"\s+" input)
-        streams (vals (@rooms room))
-        message (join " " words)
+  [room & message]
+  (let [streams (vals (@rooms room))
+        message (join " " message)
         in-as (:in-as @*session*)]
     (cond (not in-as)
           "You must be logged in to talk."
@@ -138,9 +130,9 @@ specified, prints the help string and argument list for it."
 
 (defcommand "join"
   "Creates or joins a room."
-  ["room"]
+  [room]
   (if-let [in-as (:in-as @*session*)]
-    (do (dosync (alter rooms assoc-in (command-args input 1) in-as *out*))
+    (do (dosync (alter rooms assoc-in [room] in-as *out*))
         "Successfully joined the room.")
     "You must be logged in to join rooms."))
 
@@ -154,28 +146,27 @@ specified, prints the help string and argument list for it."
   "You're not logged in."))
 
 (defcommand "whois"
-  ["user"]
-  (let [[username] (command-args input 1)]
-    (if-let [user (@users username)]
-      (let [{:keys [sign-on last-input]} user
-            pre #(apply println (str username ":") %&)]
-        (pre "WHOIS")
-        (do-when sign-on
-                 (pre "Sign on" (subs (str (to-date sign-on)) 0 19))
-                 last-input
-                 (->> ["minutes" "seconds"]
-                      (interleave ((juxt in-minutes in-secs)
-                                   (interval last-input (now))))
-                      (cons "Idle")
-                      (apply pre))))
-      "A user with that username was not found.")))
+  [username]
+  (if-let [user (@users username)]
+    (let [{:keys [sign-on last-input]} user
+          pre #(apply println (str username ":") %&)]
+      (pre "WHOIS")
+      (do-when sign-on
+               (pre "Sign on" (subs (str (to-date sign-on)) 0 19))
+               last-input
+               (->> ["minutes" "seconds"]
+                    (interleave ((juxt in-minutes in-secs)
+                                 (interval last-input (now))))
+                    (cons "Idle")
+                    (apply pre))))
+    "A user with that username was not found."))
 
 (defcommand "session"
   (str @*session*))
 
 (defn last-input []
   (when-let [in-as (:in-as @*session*)]
-    (dosync (commute users assoc-in [in-as :last-input] (now)))))
+    (dosync (commute users assoc-in [in-as] :last-input (now)))))
 
 (defn load-commands []
   (doseq [command (-> "commands.config" in :commands)]
