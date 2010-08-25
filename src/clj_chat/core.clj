@@ -66,7 +66,7 @@
     (dosync (alter help-docs assoc cmd help-map))
     `(defmethod execute ~cmd
        [~'input]
-       (let [[~'_ ~@args] (re-split #"\s+" input)]
+       (let [[~'_ ~@args] (re-split #"\s+" ~'input)]
          ~@body))))
 
 (defmethod execute :default [input]
