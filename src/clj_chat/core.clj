@@ -24,12 +24,6 @@
                               (conj acc (list 'when (first clauses)
                                               (second clauses))))))))
 
-(defn not-truthy? [& xs]
-  (not-every? identity xs))
-
-(defn str->help [s]
-  (case s "&" "&" (str "<" s ">")))
-
 (defn assoc-in [map [& ks] & key-vals]
   (update-in
    map ks merge
@@ -43,6 +37,9 @@
   ([map [& ks] key & keys]
      (reduce (fn [m k] (dissoc-in m ks k)) map
              (concat [key] keys))))
+
+(defn not-truthy? [& xs]
+  (not-every? identity xs))
 
 (defmulti execute (fn [input]
                     (-> (re-split #"\s+" input)
@@ -151,14 +148,13 @@ specified, prints the help string and argument list for it."
     (let [{:keys [sign-on last-input]} user
           pre #(apply println (str username ":") %&)]
       (pre "WHOIS")
-      (do-when sign-on
-               (pre "Sign on" (subs (str (to-date sign-on)) 0 19))
-               last-input
-               (->> ["minutes" "seconds"]
-                    (interleave ((juxt in-minutes in-secs)
-                                 (interval last-input (now))))
-                    (cons "Idle")
-                    (apply pre))))
+      (do-when
+       sign-on (pre "Sign on" (subs (str (to-date sign-on)) 0 19))
+       last-input (->> ["minutes" "seconds"]
+                       (interleave ((juxt in-minutes in-secs)
+                                    (interval last-input (now))))
+                       (cons "Idle")
+                       (apply pre))))
     "A user with that username was not found."))
 
 (defcommand "session"
