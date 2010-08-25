@@ -71,8 +71,8 @@
     `(defmethod execute ~cmd
        [~'input]
        (let [[~'_ ~@args] (re-split #"\s+" ~'input)
-             ~(or last-args '_) (or (and (coll? ~last-arg) (join " " ~last-arg))
-                                    ~last-arg)]
+             ~(or last-arg '_) (or (and (coll? ~last-arg) (join " " ~last-arg))
+                                   ~last-arg)]
          ~@body))))
 
 (defmethod execute :default [input]
