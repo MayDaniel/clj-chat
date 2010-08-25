@@ -38,6 +38,12 @@
      (reduce (fn [m k] (dissoc-in m ks k)) map
              (concat [key] keys))))
 
+(defn print-message [room user message]
+  (println (str "(" (-> (now) (str) (subs 11 19)) ")"
+                "[" room "]"
+                (str/repeat " " (- 12 (count user)))
+                user ": " message)))
+
 (defn not-truthy? [& xs]
   (not-every? identity xs))
 
@@ -56,6 +62,7 @@
                   (next options) options)
         args (when (vector? (not-empty (first options)))
                (first options))
+        last-arg (last args)
         help-map (if args
                    (assoc help-map :args (join " " args)) help-map)
         body (if (vector? (first options))
@@ -63,7 +70,9 @@
     (dosync (alter help-docs assoc cmd help-map))
     `(defmethod execute ~cmd
        [~'input]
-       (let [[~'_ ~@args] (re-split #"\s+" ~'input)]
+       (let [[~'_ ~@args] (re-split #"\s+" ~'input)
+             ~(or last-args '_) (or (and (coll? ~last-arg) (join " " ~last-arg))
+                                    ~last-arg)]
          ~@body))))
 
 (defmethod execute :default [input]
@@ -107,25 +116,18 @@ specified, prints the help string and argument list for it."
                     (send-off *session* assoc :in-as username))
             "Log in successful.")))
 
-(defn print-message [room user message]
-  (println (str "(" (-> (now) (str) (subs 11 19)) ")"
-                "[" room "]"
-                (str/repeat " " (- 12 (count user)))
-                user ": " message)))
-
 (defcommand Say
   "Prints your message to all users in the specified room."
   [room & message]
   (let [streams (vals (@rooms room))
-        message (join " " message)
         in-as (:in-as @*session*)]
     (cond (not in-as)
           "You must be logged in to talk."
           (not streams)
           "A channel with that name does not exist, or contains no users."
-          :else (doseq [stream streams]
-                  (binding [*out* stream]
-                    (print-message room in-as message))))))
+          :else (let [p-msg #(print-message room in-as message)]
+                  (doseq [stream streams]
+                    (binding [*out* stream] (p-msg)))))))
 
 (defcommand Join
   "Creates or joins a room."
@@ -143,7 +145,7 @@ specified, prints the help string and argument list for it."
                   (alter rooms dissoc-in [room] in-as))
                 (send-off *session* dissoc :in-as))
         "You've successfully logged out.")
-  "You're not logged in."))
+    "You're not logged in."))
 
 (defcommand Whois
   "Print information about the user."
