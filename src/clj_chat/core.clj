@@ -68,9 +68,9 @@
     (dosync (alter help-docs assoc cmd help-map))
     `(defmethod execute ~cmd
        [~'input]
-       (let [[~'_ ~@args] (re-split #"\s+" ~'input)
-             ~(or last-arg '_) (or (and (coll? ~last-arg) (join " " ~last-arg))
-                                   ~last-arg)]
+       (let [[~(gensym) ~@args] (re-split #"\s+" ~'input)
+             ~(or last-arg (gensym)) (or (and (coll? ~last-arg) (join " " ~last-arg))
+                                         ~last-arg)]
          ~@body))))
 
 (defmethod execute :default [input]
