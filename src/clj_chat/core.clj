@@ -42,6 +42,9 @@
   (println (str "(" (-> (now) str (subs 11 19)) ")"
                 "[" room "] " user ": " message)))
 
+(defn date->str [date]
+  (subs (str (to-date date)) 0 19))
+
 (defn not-truthy? [& xs]
   (not-every? identity xs))
 
@@ -154,7 +157,7 @@ specified, prints the help string and argument list for it."
           pre #(apply println (str username ":") %&)]
       (pre "WHOIS")
       (do-when
-       sign-on (pre "Sign on" (subs (str (to-date sign-on)) 0 19))
+       sign-on (pre "Sign on" (date->str sign-on))
        last-input (->> ["minutes" "seconds"]
                        (interleave ((juxt in-minutes in-secs)
                                     (interval last-input (now))))
@@ -164,8 +167,10 @@ specified, prints the help string and argument list for it."
 
 (defcommand Session
   "Retrieves information about your current session."
-  (let [{:keys [in-as]} @*session*]
-    (do-when in-as (println "Logged in as:" in-as))))
+  (let [{:keys [in-as]} @*session*
+        {:keys [sign-on]} (@users in-as)]
+    (do-when in-as (println "Logged in as:" in-as)
+             sign-on (println "Signed on:" (date->str sign-on)))))
 
 (defn last-input []
   (when-let [in-as (:in-as @*session*)]
