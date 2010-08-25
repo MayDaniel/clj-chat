@@ -39,7 +39,7 @@
              (concat [key] keys))))
 
 (defn print-message [room user message]
-  (println (str "(" (-> (now) (str) (subs 11 19)) ")"
+  (println (str "(" (-> (now) str (subs 11 19)) ")"
                 "[" room "] " user ": " message)))
 
 (defn not-truthy? [& xs]
