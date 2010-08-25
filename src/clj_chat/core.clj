@@ -164,7 +164,8 @@ specified, prints the help string and argument list for it."
 
 (defcommand Session
   "Retrieves information about your current session."
-  (str @*session*))
+  (let [{:keys [in-as]} @*session*]
+    (do-when in-as (println "Logged in as:" in-as))))
 
 (defn last-input []
   (when-let [in-as (:in-as @*session*)]
