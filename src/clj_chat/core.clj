@@ -49,7 +49,7 @@
 (defmacro defcommand
   {:arglists '([cmd help-string? help-args? & fn-tail])}
   [cmd & options]
-  (let [cmd (lower-case cmd)
+  (let [cmd (-> cmd str lower-case)
         help-map (if (string? (first options))
                    {:help (first options)} {})
         options (if (string? (first options))
@@ -69,7 +69,7 @@
 (defmethod execute :default [input]
   "What?")
 
-(defcommand "help"
+(defcommand Help
   "Prints a list of possible commands, or if a command is
 specified, prints the help string and argument list for it."
   [command]
@@ -79,7 +79,8 @@ specified, prints the help string and argument list for it."
       (println "Args:" (or args "There is no argument string for this command.")))
     (str "Commands: " (join " " (keys @help-docs)))))
 
-(defcommand "register"
+(defcommand Register
+  "Registers a new user."
   [username password]
   (cond (@users username)
         "A user with that name already exists."
@@ -90,7 +91,8 @@ specified, prints the help string and argument list for it."
         :else (do (dosync (alter users assoc username {:password password}))
                   "Registration successful.")))
 
-(defcommand "login"
+(defcommand Login
+  "Logs a user in."
   [username password]
   (cond (:in-as @*session*)
         "You are already logged in. Use command /logout to log in as this user."
@@ -111,7 +113,7 @@ specified, prints the help string and argument list for it."
                 (str/repeat " " (- 12 (count user)))
                 user ": " message)))
 
-(defcommand "say"
+(defcommand Say
   "Prints your message to all users in the specified room."
   [room & message]
   (let [streams (vals (@rooms room))
@@ -125,7 +127,7 @@ specified, prints the help string and argument list for it."
                   (binding [*out* stream]
                     (print-message room in-as message))))))
 
-(defcommand "join"
+(defcommand Join
   "Creates or joins a room."
   [room]
   (if-let [in-as (:in-as @*session*)]
@@ -133,7 +135,8 @@ specified, prints the help string and argument list for it."
         "Successfully joined the room.")
     "You must be logged in to join rooms."))
 
-(defcommand "logout"
+(defcommand Logout
+  "Logs a user out and removes them from all rooms they were in."
   (if-let [in-as (:in-as @*session*)]
     (do (dosync (alter users dissoc-in [in-as] :logged-in? :sign-on :last-input)
                 (doseq [[room users] @rooms :when (contains? users in-as)]
@@ -142,7 +145,8 @@ specified, prints the help string and argument list for it."
         "You've successfully logged out.")
   "You're not logged in."))
 
-(defcommand "whois"
+(defcommand Whois
+  "Print information about the user."
   [username]
   (if-let [user (@users username)]
     (let [{:keys [sign-on last-input]} user
@@ -157,7 +161,8 @@ specified, prints the help string and argument list for it."
                        (apply pre))))
     "A user with that username was not found."))
 
-(defcommand "session"
+(defcommand Session
+  "Retrieves information about your current session."
   (str @*session*))
 
 (defn last-input []
