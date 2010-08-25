@@ -40,9 +40,7 @@
 
 (defn print-message [room user message]
   (println (str "(" (-> (now) (str) (subs 11 19)) ")"
-                "[" room "]"
-                (str/repeat " " (- 12 (count user)))
-                user ": " message)))
+                "[" room "] " user ": " message)))
 
 (defn not-truthy? [& xs]
   (not-every? identity xs))
