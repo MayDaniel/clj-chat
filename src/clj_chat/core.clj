@@ -211,5 +211,4 @@ specified, prints the help string and argument list for it."
 
 (defn -main []
   (defonce server (create-server 3333 loop-handler))
-  ((:load plugins))
-  (println))
+  ((:load plugins)))
