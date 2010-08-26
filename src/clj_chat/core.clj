@@ -1,5 +1,6 @@
 (ns clj-chat.core
   (:refer-clojure :exclude [assoc-in load])
+  (:import java.io.FileNotFoundException)
   (:require [clojure.contrib.str-utils2 :as str])
   (:use [clojure.contrib.server-socket :only [create-server]]
         [clojure.java.io :only [reader writer]]
@@ -183,13 +184,14 @@ specified, prints the help string and argument list for it."
 (defrecord Plugins [loaded]
   PPlugins
   (loaded [_] @loaded)
-  (load [plugins command] (try (require (symbol (str "clj-chat.plugins." command)) :reload)
-                               (swap! loaded conj command)
-                               (catch Exception e
-                                 (print \newline "Plugin:" (str "<" command ">") "could not be loaded."
-                                        \newline "Reason:" (cond (instance? java.io.FileNotFoundException e)
-                                                                 "File not found."
-                                                                 :else "Unknown")))))
+  (load [plugins command]
+        (try (require (symbol (str "clj-chat.plugins." command)) :reload)
+             (swap! loaded conj command)
+             (catch Exception e
+               (print \newline "Plugin:" (str "<" command ">") "could not be loaded."
+                      \newline "Reason:" (cond (instance? FileNotFoundException e)
+                                               "File not found."
+                                               :else "Unknown.")))))
   (load [plugins] (doseq [command @loaded] (load plugins command)))
   (unload [plugins] (doseq [command @loaded] (unload plugins command)))
   (unload [plugins command]
