@@ -184,13 +184,14 @@ specified, prints the help string and argument list for it."
                                    (cond (instance? java.io.FileNotFoundException e)
                                          "File not found."
                                          :else "Unknown."))))))
-      :unload (fn [command]
-                (dosync (commute help-docs dissoc command))
-                (reset! (:loaded plugins) #{})
-                (remove-method execute command))
-      :unload-all (fn [] (doseq [command @(:loaded plugins)]
-                           ((:unload plugins) command)))
-      :reload (fn [] ((:unload-all plugins)) ((:load plugins)))})
+      :unload (fn
+                ([] (doseq [command @(:loaded plugins)]
+                      ((:unload plugins) command)))
+                ([command]
+                   (dosync (commute help-docs dissoc command))
+                   (reset! (:loaded plugins) #{})
+                   (remove-method execute command)))
+      :reload (fn [] ((:unload plugins)) ((:load plugins)))})
 
 (defn execute-layer [input]
   (try (execute input)
