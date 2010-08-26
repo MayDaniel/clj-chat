@@ -181,7 +181,7 @@ specified, prints the help string and argument list for it."
   (reload [_] "Updates, unloads, loads.")
   (update [_] "Reloads the plug-in configuration file."))
 
-(defrecord Plugins [loaded]
+(defrecord Plugins [plugin-file loaded]
   PPlugins
   (loaded [_] @loaded)
   (load [plugins command]
@@ -199,10 +199,10 @@ specified, prints the help string and argument list for it."
           (swap! loaded disj command)
           (remove-method execute command))
   (reload [plugins] (update plugins) (unload plugins) (load plugins))
-  (update [_] (reset! loaded (-> "plugins.config" in :plugins))))
+  (update [_] (reset! loaded (-> plugin-file in :plugins))))
 
-(defn init-plugins []
-  (defonce plugins (Plugins. (atom #{})))
+(defn init-plugins [plugin-file]
+  (defonce plugins (Plugins. plugin-file (atom #{})))
   (update plugins) (load plugins))
 
 (defn execute-layer [input]
@@ -223,5 +223,5 @@ specified, prints the help string and argument list for it."
 
 (defn -main []
   (defonce server (create-server 3333 loop-handler))
-  (init-plugins)
+  (init-plugins "plugins.config")
   (println))
