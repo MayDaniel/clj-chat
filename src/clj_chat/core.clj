@@ -173,10 +173,24 @@ specified, prints the help string and argument list for it."
   (when-let [in-as (:in-as @*session*)]
     (dosync (alter users assoc-in [in-as] :last-input (now)))))
 
-(defn load-commands []
-  (doseq [command (-> "commands.config" in :commands)]
-    (let [prefix (str "clj-chat.plugins." command)]
-      (require (symbol prefix)))))
+(def plugins
+     {:loaded (atom #{})
+      :load (fn [] (doseq [command (-> "plugins.config" in :plugins)]
+                     (try (require (symbol (str "clj-chat.plugins." command)) :reload)
+                          (swap! (:loaded plugins) conj command)
+                          (catch Exception e
+                            (print \newline "Plugin:" (str "<" command ">") "could not be loaded.")
+                            (print \newline "Reason:"
+                                   (cond (instance? java.io.FileNotFoundException e)
+                                         "File not found."
+                                         :else "Unknown."))))))
+      :unload (fn [command]
+                (dosync (commute help-docs dissoc command))
+                (reset! (:loaded plugins) #{})
+                (remove-method execute command))
+      :unload-all (fn [] (doseq [command @(:loaded plugins)]
+                           ((:unload plugins) command)))
+      :reload (fn [] ((:unload-all plugins)) ((:load plugins)))})
 
 (defn execute-layer [input]
   (try (execute input)
@@ -195,5 +209,6 @@ specified, prints the help string and argument list for it."
       (recur (read-line)))))
 
 (defn -main []
-  (load-commands)
-  (defonce server (create-server 3333 loop-handler)))
+  (defonce server (create-server 3333 loop-handler))
+  ((:reload plugins))
+  (println))
