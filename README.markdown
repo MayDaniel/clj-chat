@@ -9,11 +9,6 @@ A simple chat server.
 
 Connect to the server.
 
-## Future
-
-- Use [Trammel](http://github.com/Fogus/Trammel)? to define an admin
-  contract, which could be used in commands such as load, unload, kick.
-
 ## Extending
 
 See
