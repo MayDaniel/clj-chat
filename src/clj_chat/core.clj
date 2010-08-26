@@ -189,7 +189,7 @@ specified, prints the help string and argument list for it."
                       ((:unload plugins) command)))
                 ([command]
                    (dosync (commute help-docs dissoc command))
-                   (reset! (:loaded plugins) #{})
+                   (swap! (:loaded plugins) dissoc command)
                    (remove-method execute command)))
       :reload (fn [] ((:unload plugins)) ((:load plugins)))})
 
