@@ -65,7 +65,7 @@
                    (assoc help-map :args (join " " args)) help-map)
         body (if (vector? (first options))
                (next options) options)]
-    (dosync (alter help-docs assoc cmd help-map))
+    (dosync (commute help-docs assoc cmd help-map))
     `(defmethod execute ~cmd
        [~'input]
        (let [[~(gensym) ~@args] (re-split #"\s+" ~'input)
@@ -179,8 +179,8 @@ specified, prints the help string and argument list for it."
                (try (require (symbol (str "clj-chat.plugins." command)) :reload)
                     (swap! (:loaded plugins) conj command)
                     (catch Exception e
-                      (print \newline "Plugin:" (str "<" command ">") "could not be loaded.")
-                      (print \newline "Reason:"
+                      (print \newline "Plugin:" (str "<" command ">") "could not be loaded."
+                             \newline "Reason:"
                              (cond (instance? java.io.FileNotFoundException e)
                                    "File not found."
                                    :else "Unknown.")))))
@@ -211,4 +211,5 @@ specified, prints the help string and argument list for it."
 
 (defn -main []
   (defonce server (create-server 3333 loop-handler))
-  ((:load plugins)))
+  ((:load plugins))
+  (println))
