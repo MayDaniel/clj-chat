@@ -32,11 +32,8 @@
            key (throw (IllegalArgumentException. "Odd number of keys/vals."))
            :else (persistent! tmap)))))
 
-(defn dissoc-in
-  ([map [& ks] key] (update-in map ks dissoc key))
-  ([map [& ks] key & keys]
-     (reduce (fn [m k] (dissoc-in m ks k)) map
-             (concat [key] keys))))
+(defn dissoc-in [map [& ks] key & keys]
+  (apply update-in map ks dissoc key keys))
 
 (defn print-message [room user message]
   (println (str "(" (-> (now) str (subs 11 19)) ")"
@@ -174,7 +171,7 @@ specified, prints the help string and argument list for it."
 
 (defn last-input []
   (when-let [in-as (:in-as @*session*)]
-    (dosync (commute users assoc-in [in-as] :last-input (now)))))
+    (dosync (alter users assoc-in [in-as] :last-input (now)))))
 
 (defn load-commands []
   (doseq [command (-> "commands.config" in :commands)]
