@@ -40,7 +40,7 @@
                 "[" room "] " user ": " message)))
 
 (defn date->str [date]
-  (subs (str (to-date date)) 0 19))
+  (-> date to-date str (subs 0 19)))
 
 (defn not-truthy? [& xs]
   (not-every? identity xs))
@@ -124,9 +124,9 @@ specified, prints the help string and argument list for it."
           "You must be logged in to talk."
           (not streams)
           "A channel with that name does not exist, or contains no users."
-          :else (let [p-msg #(print-message room in-as message)]
-                  (doseq [stream streams]
-                    (binding [*out* stream] (p-msg)))))))
+          :else (doseq [stream streams]
+                  (binding [*out* stream]
+                    (print-message room in-as message))))))
 
 (defcommand Join
   "Creates or joins a room."
@@ -137,7 +137,7 @@ specified, prints the help string and argument list for it."
     "You must be logged in to join rooms."))
 
 (defcommand Logout
-  "Logs a user out and removes them from all rooms they were in."
+  "Logs a user out and removes them from all rooms."
   (if-let [in-as (:in-as @*session*)]
     (do (dosync (alter users dissoc-in [in-as] :logged-in? :sign-on :last-input)
                 (doseq [[room users] @rooms :when (contains? users in-as)]
@@ -147,7 +147,7 @@ specified, prints the help string and argument list for it."
     "You're not logged in."))
 
 (defcommand Whois
-  "Print information about the user."
+  "Shows information about the user."
   [username]
   (if-let [user (@users username)]
     (let [{:keys [sign-on last-input]} user
@@ -156,10 +156,10 @@ specified, prints the help string and argument list for it."
       (do-when
        sign-on (pre "Sign on" (date->str sign-on))
        last-input (->> ["minutes" "seconds"]
-                       (interleave ((juxt in-minutes in-secs)
-                                    (interval last-input (now))))
-                       (cons "Idle")
-                       (apply pre))))
+                       (interleave
+                        ((juxt in-minutes in-secs)
+                         (interval last-input (now))))
+                       (apply pre "Idle"))))
     "A user with that username was not found."))
 
 (defcommand Session
@@ -176,8 +176,7 @@ specified, prints the help string and argument list for it."
 (defn load-commands []
   (doseq [command (-> "commands.config" in :commands)]
     (let [prefix (str "clj-chat.plugins." command)]
-      (require (symbol prefix))
-      (resolve (symbol (str prefix "/execute"))))))
+      (require (symbol prefix)))))
 
 (defn execute-layer [input]
   (try (execute input)
