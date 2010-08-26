@@ -1,5 +1,5 @@
 (ns clj-chat.core
-  (:refer-clojure :exclude [assoc-in])
+  (:refer-clojure :exclude [assoc-in load])
   (:require [clojure.contrib.str-utils2 :as str])
   (:use [clojure.contrib.server-socket :only [create-server]]
         [clojure.java.io :only [reader writer]]
@@ -173,25 +173,35 @@ specified, prints the help string and argument list for it."
   (when-let [in-as (:in-as @*session*)]
     (dosync (alter users assoc-in [in-as] :last-input (now)))))
 
-(def plugins
-     {:loaded (atom #{})
-      :load #(doseq [command (-> "plugins.config" in :plugins)]
-               (try (require (symbol (str "clj-chat.plugins." command)) :reload)
-                    (swap! (:loaded plugins) conj command)
-                    (catch Exception e
-                      (print \newline "Plugin:" (str "<" command ">") "could not be loaded."
-                             \newline "Reason:"
-                             (cond (instance? java.io.FileNotFoundException e)
-                                   "File not found."
-                                   :else "Unknown.")))))
-      :unload (fn
-                ([] (doseq [command @(:loaded plugins)]
-                      ((:unload plugins) command)))
-                ([command]
-                   (dosync (commute help-docs dissoc command))
-                   (swap! (:loaded plugins) disj command)
-                   (remove-method execute command)))
-      :reload (fn [] ((:unload plugins)) ((:load plugins)))})
+(defprotocol PPlugins
+  (loaded [_] "Shows a set of the loaded plug-ins.")
+  (load [_] [_ command] "Loads all, or a single plug-in.")
+  (unload [_] [_ command] "Unloads all, or a single plug-in.")
+  (reload [_] "Updates, unloads, loads.")
+  (update [_] "Reloads the plug-in configuration file."))
+
+(defrecord Plugins [loaded]
+  PPlugins
+  (loaded [_] @loaded)
+  (load [plugins command] (try (require (symbol (str "clj-chat.plugins." command)) :reload)
+                               (swap! loaded conj command)
+                               (catch Exception e
+                                 (print \newline "Plugin:" (str "<" command ">") "could not be loaded."
+                                        \newline "Reason:" (cond (instance? java.io.FileNotFoundException e)
+                                                                 "File not found."
+                                                                 :else "Unknown")))))
+  (load [plugins] (doseq [command @loaded] (load plugins command)))
+  (unload [plugins] (doseq [command @loaded] (unload plugins command)))
+  (unload [plugins command]
+          (dosync (commute help-docs dissoc command))
+          (swap! loaded disj command)
+          (remove-method execute command))
+  (reload [plugins] (update plugins) (unload plugins) (load plugins))
+  (update [_] (reset! loaded (-> "plugins.config" in :plugins))))
+
+(defn init-plugins []
+  (defonce plugins (Plugins. (atom #{})))
+  (update plugins) (load plugins))
 
 (defn execute-layer [input]
   (try (execute input)
@@ -211,5 +221,5 @@ specified, prints the help string and argument list for it."
 
 (defn -main []
   (defonce server (create-server 3333 loop-handler))
-  ((:load plugins))
+  (init-plugins)
   (println))
