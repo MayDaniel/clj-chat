@@ -25,26 +25,28 @@
                               (conj acc (list 'when (first clauses)
                                               (second clauses))))))))
 
-(defn assoc-in [map [& ks] & key-vals]
-  (update-in
-   map ks merge
-   (loop [[key val & kvs] key-vals tmap (transient {})]
-     (cond val (recur kvs (assoc! tmap key val))
-           key (throw (IllegalArgumentException. "Odd number of keys/vals."))
-           :else (persistent! tmap)))))
+(defn assoc-in [map [& ks] key val & key-vals]
+  (apply update-in map ks assoc key val key-vals))
 
 (defn dissoc-in [map [& ks] key & keys]
   (apply update-in map ks dissoc key keys))
 
-(defn print-message [room user message]
-  (println (str "(" (-> (now) str (subs 11 19)) ")"
-                "[" room "] " user ": " message)))
+(defn not-truthy? [& xs]
+  (not-every? identity xs))
+
+(defn id?<- [coll]
+  (filter identity coll))
 
 (defn date->str [date]
   (-> date to-date str (subs 0 19)))
 
-(defn not-truthy? [& xs]
-  (not-every? identity xs))
+(defn print-message [room user message]
+  (println (str "(" (date->str (now)) ")"
+                "[" room "] " user ": " message)))
+
+(defn last-input []
+  (when-let [in-as (:in-as @*session*)]
+    (dosync (alter users assoc-in [in-as] :last-input (now)))))
 
 (defmulti execute (fn [input]
                     (-> (re-split #"\s+" input)
@@ -119,13 +121,12 @@ specified, prints the help string and argument list for it."
 (defcommand Say
   "Prints your message to all users in the specified room."
   [room & message]
-  (let [streams (vals (@rooms room))
-        in-as (:in-as @*session*)]
+  (let [in-as (:in-as @*session*)]
     (cond (not in-as)
           "You must be logged in to talk."
           (not streams)
           "A channel with that name does not exist, or contains no users."
-          :else (doseq [stream streams]
+          :else (doseq [[_ stream] streams]
                   (binding [*out* stream]
                     (print-message room in-as message))))))
 
@@ -151,16 +152,14 @@ specified, prints the help string and argument list for it."
   "Shows information about the user."
   [username]
   (if-let [user (@users username)]
-    (let [{:keys [sign-on last-input]} user
-          pre #(apply println (str username ":") %&)]
-      (pre "WHOIS")
-      (do-when
-       sign-on (pre "Sign on" (date->str sign-on))
-       last-input (->> ["minutes" "seconds"]
-                       (interleave
-                        ((juxt in-minutes in-secs)
-                         (interval last-input (now))))
-                       (apply pre "Idle"))))
+    (let [{:keys [sign-on last-input]} user]
+      (dorun (map println (repeat (str username ":"))
+                  (id?<- ["WHOIS"
+                          (and sign-on (str "Sign on: " (date->str sign-on)))
+                          (and last-input (->> ["minutes" "seconds"]
+                                               (interleave ((juxt in-minutes in-secs)
+                                                            (interval last-input (now))))
+                                               (cons "Idle") (join " ")))]))))
     "A user with that username was not found."))
 
 (defcommand Session
@@ -170,16 +169,12 @@ specified, prints the help string and argument list for it."
     (do-when in-as (println "Logged in as:" in-as)
              sign-on (println "Signed on:" (date->str sign-on)))))
 
-(defn last-input []
-  (when-let [in-as (:in-as @*session*)]
-    (dosync (alter users assoc-in [in-as] :last-input (now)))))
-
 (defprotocol PPlugins
   (loaded [_] "Shows a set of the loaded plug-ins.")
   (load [_] [_ command] "Loads all, or a single plug-in.")
   (unload [_] [_ command] "Unloads all, or a single plug-in.")
-  (reload [_] "Updates, unloads, loads.")
-  (update [_] "Reloads the plug-in configuration file."))
+  (update [_] "Reloads the plug-in configuration file.")
+  (reload [_] "Updates, unloads, loads."))
 
 (defrecord Plugins [plugin-file loaded]
   PPlugins
@@ -198,8 +193,8 @@ specified, prints the help string and argument list for it."
           (dosync (commute help-docs dissoc command))
           (swap! loaded disj command)
           (remove-method execute command))
-  (reload [plugins] (update plugins) (unload plugins) (load plugins))
-  (update [_] (reset! loaded (-> plugin-file in :plugins))))
+  (update [_] (reset! loaded (-> plugin-file in :plugins)))
+  (reload [plugins] (update plugins) (unload plugins) (load plugins)))
 
 (defn init-plugins [plugin-file]
   (defonce plugins (Plugins. plugin-file (atom #{})))
@@ -223,5 +218,4 @@ specified, prints the help string and argument list for it."
 
 (defn -main []
   (defonce server (create-server 3333 loop-handler))
-  (init-plugins "plugins.config")
-  (println))
+  (init-plugins "plugins.config") (prn))
