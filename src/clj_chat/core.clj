@@ -121,12 +121,13 @@ specified, prints the help string and argument list for it."
 (defcommand Say
   "Prints your message to all users in the specified room."
   [room & message]
-  (let [in-as (:in-as @*session*)]
+  (let [in-as (:in-as @*session*)
+        streams (vals (@rooms room))]
     (cond (not in-as)
           "You must be logged in to talk."
           (not streams)
           "A channel with that name does not exist, or contains no users."
-          :else (doseq [[_ stream] streams]
+          :else (doseq [stream streams]
                   (binding [*out* stream]
                     (print-message room in-as message))))))
 
@@ -183,10 +184,10 @@ specified, prints the help string and argument list for it."
         (try (require (symbol (str "clj-chat.plugins." command)) :reload)
              (swap! loaded conj command)
              (catch Exception e
-               (print \newline "Plugin:" (str "<" command ">") "could not be loaded."
-                      \newline "Reason:" (cond (instance? FileNotFoundException e)
-                                               "File not found."
-                                               :else "Unknown.")))))
+               (println "Plugin:" (str "<" command ">") "could not be loaded.")
+               (println "Reason:" (cond (instance? FileNotFoundException e)
+                                        "File not found."
+                                        :else "Unknown.")))))
   (load [plugins] (doseq [command @loaded] (load plugins command)))
   (unload [plugins] (doseq [command @loaded] (unload plugins command)))
   (unload [plugins command]
@@ -218,4 +219,4 @@ specified, prints the help string and argument list for it."
 
 (defn -main []
   (defonce server (create-server 3333 loop-handler))
-  (init-plugins "plugins.config") (prn))
+  (init-plugins "plugins.config"))
