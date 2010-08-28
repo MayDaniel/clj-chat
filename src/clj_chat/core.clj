@@ -25,6 +25,9 @@
                               (conj acc (list 'when (first clauses)
                                               (second clauses))))))))
 
+(defn & [& fns]
+  ((apply comp fns)))
+
 (defn assoc-in [map [& ks] key val & key-vals]
   (apply update-in map ks assoc key val key-vals))
 
@@ -122,12 +125,12 @@ specified, prints the help string and argument list for it."
   "Prints your message to all users in the specified room."
   [room & message]
   (let [in-as (:in-as @*session*)
-        streams (vals (@rooms room))]
+        users (@rooms room)]
     (cond (not in-as)
           "You must be logged in to talk."
-          (not streams)
+          (not users)
           "A channel with that name does not exist, or contains no users."
-          :else (doseq [stream streams]
+          :else (doseq [[_ stream] users]
                   (binding [*out* stream]
                     (print-message room in-as message))))))
 
@@ -184,6 +187,7 @@ specified, prints the help string and argument list for it."
         (try (require (symbol (str "clj-chat.plugins." command)) :reload)
              (swap! loaded conj command)
              (catch Exception e
+               (println e)
                (println "Plugin:" (str "<" command ">") "could not be loaded.")
                (println "Reason:" (cond (instance? FileNotFoundException e)
                                         "File not found."
