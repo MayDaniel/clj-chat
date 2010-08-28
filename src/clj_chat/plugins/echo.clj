@@ -2,5 +2,4 @@
   (:use [clj-chat.core :only [defcommand]]))
 
 (defcommand echo
-  [& input]
-  (println input))
+  [& input] input)

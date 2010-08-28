@@ -11,9 +11,7 @@ Connect to the server.
 
 ## Extending
 
-See
-[this](http://github.com/MayDaniel/clj-chat/blob/master/src/clj_chat/plugins/echo.clj)
-for an example plug-in.
+There are a few example plug-ins [here](http://github.com/MayDaniel/clj-chat/blob/master/src/clj_chat/plugins/).
 
 To load your plug-in, add the namespace postfix (for example,
 namespace foo.bar.baz would have the postfix baz) to the set in
