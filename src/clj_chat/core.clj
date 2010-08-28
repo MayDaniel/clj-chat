@@ -25,8 +25,8 @@
                               (conj acc (list 'when (first clauses)
                                               (second clauses))))))))
 
-(defn & [& fns]
-  ((apply comp fns)))
+(defn & [f & fs]
+  ((apply comp f fs)))
 
 (defn assoc-in [map [& ks] key val & key-vals]
   (apply update-in map ks assoc key val key-vals))
