@@ -10,10 +10,10 @@
         [clj-time.core :only [interval in-minutes in-secs now]]
         [clj-time.coerce :only [to-date]]))
 
-(def users (ref {}))
-(def rooms (ref {}))
-(def help-docs (ref {}))
-(def *session*)
+(defonce users (ref {}))
+(defonce rooms (ref {}))
+(defonce help-docs (ref {}))
+(declare *session*)
 
 (defmacro do-when [& clauses]
   `(do ~@(loop [clauses clauses acc []]
