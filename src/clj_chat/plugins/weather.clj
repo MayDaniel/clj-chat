@@ -4,6 +4,7 @@
         [clojure.string :only [join]]))
 
 (defcommand weather
+  "Grabs the latest Yahoo! Weather data based on your search."
   [& search]
   (let [[{:keys [city country]} condition]
         ((juxt :location :condition) (yahoo-weather search))]
