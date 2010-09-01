@@ -1,11 +1,17 @@
+# Mongo
+
+Experimental branch: Refactoring clj-chat to use [MongoDB](http://www.mongodb.org/) in place of
+refs where possible. (I don't think Writers can be serialized.)
+
+MongoDB is required, but it's simple to [set up](http://www.mongodb.org/display/DOCS/Quickstart).
+
 # Clj-Chat
 
 A simple chat server.
 
 ## Usage
 
-[MongoDB](http://www.mongodb.org/display/DOCS/Quickstart) is
-required. It's simple to set up.
+Start MongoDB.
 
     (use 'clj-chat.core)
     (-main)
