@@ -1,5 +1,5 @@
 (ns clj-chat.core
-  (:refer-clojure :exclude [load])
+  (:refer-clojure :exclude [load assoc-in])
   (:import java.io.FileNotFoundException)
   (:require [clojure.contrib.str-utils2 :as str]
             [clj-chat.db :as db])
@@ -28,6 +28,12 @@
                                               (second clauses))))))))
 
 (def format-time (formatters :basic-date-time))
+
+(defn assoc-in [map [& ks] key val & key-vals]
+  (apply update-in map ks assoc key val key-vals))
+
+(defn dissoc-in [map [& ks] key & keys]
+  (apply update-in map ks dissoc key keys))
 
 (defn id?<- [coll]
   (filter identity coll))
@@ -145,19 +151,21 @@ specified, prints the help string and argument list for it."
         "You've successfully logged out.")
     "You're not logged in."))
 
+(defn interval->now [date]
+  (let [[seconds minutes] ((juxt in-minutes in-secs)
+                           (interval date (now)))]
+    (join " " [minutes "minutes" (mod seconds 60) "seconds"])))
+
 (defcommand Whois
   "Shows information about the user."
   [username]
   (if-let [user (db/fetch-user username)]
     (let [{:keys [sign-on last-input]} user]
-      (dorun (map println (repeat (str username ":"))
-                  (id?<- ["WHOIS"
-                          (and sign-on (str "Sign on: " sign-on))
-                          (and last-input (->> ["minutes" "seconds"]
-                                               (interleave ((juxt in-minutes #(mod (in-secs %) 60))
-                                                            (interval (parse format-time last-input)
-                                                                      (now))))
-                                               (cons "Idle") (join " ")))]))))
+      (println "WHOIS:" username)
+      (do-when sign-on
+               (println "Sign on:" sign-on)
+               last-input
+               (println "Idle:" (interval->now (parse format-time last-input)))))
     "A user with that username was not found."))
 
 (defcommand Session
@@ -174,7 +182,7 @@ specified, prints the help string and argument list for it."
   (update [_] "Reloads the plug-in configuration file.")
   (reload [_] "Updates, unloads, loads."))
 
-(defrecord Plugins [plugin-file loaded]
+(defrecord Plugins [loaded]
   PPlugins
   (loaded [_] @loaded)
   (load [plugins command]
@@ -192,12 +200,8 @@ specified, prints the help string and argument list for it."
           (dosync (commute help-docs dissoc command))
           (swap! loaded disj command)
           (remove-method execute command))
-  (update [_] (reset! loaded (-> plugin-file in :plugins)))
+  (update [_] (reset! loaded (-> "plugins.config" in :plugins)))
   (reload [plugins] (update plugins) (unload plugins) (load plugins)))
-
-(defn init-plugins [plugin-file]
-  (defonce plugins (Plugins. plugin-file (atom #{})))
-  (update plugins) (load plugins))
 
 (defn execute-layer [input]
   (try (execute input)
@@ -217,4 +221,5 @@ specified, prints the help string and argument list for it."
 
 (defn -main []
   (defonce server (create-server 3333 loop-handler))
-  (init-plugins "plugins.config"))
+  (defonce plugins (Plugins. (atom #{})))
+  (update plugins) (load plugins))
