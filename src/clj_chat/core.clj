@@ -35,9 +35,6 @@
 (defn dissoc-in [map [& ks] key & keys]
   (apply update-in map ks dissoc key keys))
 
-(defn id?<- [coll]
-  (filter identity coll))
-
 (defn date->str
   ([] (date->str (now)))
   ([date] (-> date to-date str (subs 0 19))))
@@ -45,6 +42,11 @@
 (defn print-message [room user message]
   (println (str "(" (date->str) ")"
                 "[" room "] " user ": " message)))
+
+(defn interval->now [date]
+  (let [[seconds minutes] ((juxt in-minutes in-secs)
+                           (interval date (now)))]
+    (join " " [minutes "minutes" (mod seconds 60) "seconds"])))
 
 (defn last-input []
   (when-let [in-as (:in-as @*session*)]
@@ -150,11 +152,6 @@ specified, prints the help string and argument list for it."
         (db/update-user! in-as dissoc :logged-in? :sign-on :last-input)
         "You've successfully logged out.")
     "You're not logged in."))
-
-(defn interval->now [date]
-  (let [[seconds minutes] ((juxt in-minutes in-secs)
-                           (interval date (now)))]
-    (join " " [minutes "minutes" (mod seconds 60) "seconds"])))
 
 (defcommand Whois
   "Shows information about the user."
