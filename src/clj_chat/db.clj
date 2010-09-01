@@ -1,5 +1,6 @@
 (ns clj-chat.db
-  (:use [somnium.congomongo :only [mongo! insert! update! destroy! fetch-one]]))
+  (:use somnium.congomongo
+        [clojure.string :only [join]]))
 
 (mongo! :db "clj-chat")
 
@@ -23,3 +24,20 @@
 
 (defn remove-user! [username]
   (destroy! :users (user-map username)))
+
+;;;;;;
+
+(defn help-map
+  ([command] {:command command})
+  ([command doc] {:command command :doc doc}))
+
+(defn fetch-help
+  ([] (->> (fetch :help) (map :command) (join " ")))
+  ([command] (:doc (fetch-one :help :where (help-map command)))))
+
+(defn add-help! [command doc]
+  (when-not (fetch-help command)
+    (insert! :help (help-map command doc))))
+
+(defn remove-help! [command]
+  (destroy! :help (help-map command)))

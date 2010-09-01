@@ -14,7 +14,6 @@
          [coerce :only [to-date]]]))
 
 (defonce rooms (ref {}))
-(defonce help-docs (ref {}))
 (declare *session*)
 
 (defmacro do-when [& clauses]
@@ -61,18 +60,18 @@
   {:arglists '([cmd help-string? help-args? & fn-tail])}
   [cmd & options]
   (let [cmd (-> cmd str lower-case)
-        help-map (if (string? (first options))
-                   {:help (first options)} {})
+        help (if (string? (first options))
+               {:doc (first options)} {})
         options (if (string? (first options))
                   (next options) options)
         args (when (vector? (not-empty (first options)))
                (first options))
         last-arg (last args)
-        help-map (if args
-                   (assoc help-map :args (join " " args)) help-map)
+        help (if args
+               (assoc help :args (join " " args)) help)
         body (if (vector? (first options))
                (next options) options)]
-    (dosync (commute help-docs assoc cmd help-map))
+    (db/add-help! cmd help)
     `(defmethod execute ~cmd
        [~'input]
        (let [[~(gensym) ~@args] (re-split #"\s+" ~'input)
@@ -87,11 +86,11 @@
   "Prints a list of possible commands, or if a command is
 specified, prints the help string and argument list for it."
   [command]
-  (if-let [cmd-entry (@help-docs command)]
-    (let [{:keys [help args]} cmd-entry]
-      (println "Docs:" (or help "There is no help documentation for this command."))
+  (if-let [entry (db/fetch-help command)]
+    (let [{:keys [args doc]} entry]
+      (println "Docs:" (or doc "There is no help documentation for this command."))
       (println "Args:" (or args "There is no argument string for this command.")))
-    (str "Commands: " (join " " (keys @help-docs)))))
+    (str "Commands: " (db/fetch-help))))
 
 (defcommand Register
   "Registers a new user."
@@ -193,11 +192,14 @@ specified, prints the help string and argument list for it."
   (load [plugins] (doseq [command @loaded] (load plugins command)))
   (unload [plugins] (doseq [command @loaded] (unload plugins command)))
   (unload [plugins command]
-          (dosync (commute help-docs dissoc command))
+          (db/remove-help! command)
           (swap! loaded disj command)
           (remove-method execute command))
   (update [_] (reset! loaded (-> "plugins.config" in :plugins)))
-  (reload [plugins] (update plugins) (unload plugins) (load plugins)))
+  (reload [plugins]
+          (update plugins)
+          (unload plugins)
+          (load plugins)))
 
 (defn execute-layer [input]
   (try (execute input)
