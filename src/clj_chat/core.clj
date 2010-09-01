@@ -186,7 +186,6 @@ specified, prints the help string and argument list for it."
         (try (require (symbol (str "clj-chat.plugins." command)) :reload)
              (swap! loaded conj command)
              (catch Exception e
-               (println e)
                (println "Plugin:" (str "<" command ">") "could not be loaded.")
                (println "Reason:" (cond (instance? FileNotFoundException e)
                                         "File not found."
