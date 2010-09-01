@@ -1,16 +1,18 @@
 (ns clj-chat.core
-  (:refer-clojure :exclude [assoc-in load])
+  (:refer-clojure :exclude [load])
   (:import java.io.FileNotFoundException)
-  (:require [clojure.contrib.str-utils2 :as str])
+  (:require [clojure.contrib.str-utils2 :as str]
+            [clj-chat.db :as db])
   (:use [clojure.contrib.server-socket :only [create-server]]
         [clojure.java.io :only [reader writer]]
         [clojure.string :only [lower-case capitalize join]]
         [clojure.contrib.str-utils :only [re-split]]
         [clj-store.core :only [in]]
-        [clj-time.core :only [interval in-minutes in-secs now]]
-        [clj-time.coerce :only [to-date]]))
+        [clj-time
+         [core :only [interval in-minutes in-secs now]]
+         [format :only [formatters parse unparse]]
+         [coerce :only [to-date]]]))
 
-(defonce users (ref {}))
 (defonce rooms (ref {}))
 (defonce help-docs (ref {}))
 (declare *session*)
@@ -25,31 +27,22 @@
                               (conj acc (list 'when (first clauses)
                                               (second clauses))))))))
 
-(defn & [f & fs]
-  ((apply comp f fs)))
-
-(defn assoc-in [map [& ks] key val & key-vals]
-  (apply update-in map ks assoc key val key-vals))
-
-(defn dissoc-in [map [& ks] key & keys]
-  (apply update-in map ks dissoc key keys))
-
-(defn not-truthy? [& xs]
-  (not-every? identity xs))
+(def format-time (formatters :basic-date-time))
 
 (defn id?<- [coll]
   (filter identity coll))
 
-(defn date->str [date]
-  (-> date to-date str (subs 0 19)))
+(defn date->str
+  ([] (date->str (now)))
+  ([date] (-> date to-date str (subs 0 19))))
 
 (defn print-message [room user message]
-  (println (str "(" (date->str (now)) ")"
+  (println (str "(" (date->str) ")"
                 "[" room "] " user ": " message)))
 
 (defn last-input []
   (when-let [in-as (:in-as @*session*)]
-    (dosync (alter users assoc-in [in-as] :last-input (now)))))
+    (db/update-user! in-as merge {:last-input (unparse format-time (now))})))
 
 (defmulti execute (fn [input]
                     (-> (re-split #"\s+" input)
@@ -95,13 +88,13 @@ specified, prints the help string and argument list for it."
 (defcommand Register
   "Registers a new user."
   [username password]
-  (cond (@users username)
+  (cond (db/user-exists? username)
         "A user with that name already exists."
-        (not-truthy? username password)
+        (not (and username password))
         "You must specify a username and password."
         (not-every? #(re-find #"^[a-zA-Z0-9_]{3,12}$" %) [username password])
         "Invalid username/password."
-        :else (do (dosync (alter users assoc username {:password password}))
+        :else (do (db/add-user! username password)
                   "Registration successful.")))
 
 (defcommand Login
@@ -109,16 +102,16 @@ specified, prints the help string and argument list for it."
   [username password]
   (cond (:in-as @*session*)
         "You are already logged in. Use command /logout to log in as this user."
-        (not-truthy? username password)
+        (not (and username password))
         "You must specify a username and password."
-        (not (@users username))
+        (not (db/user-exists? username))
         "That user does not exist."
-        (:logged-in? (@users username))
+        (:logged-in? (db/fetch-user username))
         "This user is already logged in."
-        (not= password (:password (@users username)))
+        (not= password (:password (db/fetch-user username)))
         "Incorrect password."
-        :else (do (dosync (alter users assoc-in [username] :logged-in? true :sign-on (now))
-                          (send-off *session* assoc :in-as username))
+        :else (do (db/update-user! username merge {:logged-in? true :sign-on (date->str)})
+                  (send-off *session* assoc :in-as username)
                   "Log in successful.")))
 
 (defcommand Say
@@ -145,33 +138,34 @@ specified, prints the help string and argument list for it."
 (defcommand Logout
   "Logs a user out and removes them from all rooms."
   (if-let [in-as (:in-as @*session*)]
-    (do (dosync (alter users dissoc-in [in-as] :logged-in? :sign-on :last-input)
-                (doseq [[room users] @rooms :when (contains? users in-as)]
-                  (alter rooms dissoc-in [room] in-as))
-                (send-off *session* dissoc :in-as))
+    (do (doseq [[room users] @rooms :when (contains? users in-as)]
+          (alter rooms dissoc-in [room] in-as))
+        (send-off *session* dissoc :in-as)
+        (db/update-user! in-as dissoc :logged-in? :sign-on :last-input)
         "You've successfully logged out.")
     "You're not logged in."))
 
 (defcommand Whois
   "Shows information about the user."
   [username]
-  (if-let [user (@users username)]
+  (if-let [user (db/fetch-user username)]
     (let [{:keys [sign-on last-input]} user]
       (dorun (map println (repeat (str username ":"))
                   (id?<- ["WHOIS"
-                          (and sign-on (str "Sign on: " (date->str sign-on)))
+                          (and sign-on (str "Sign on: " sign-on))
                           (and last-input (->> ["minutes" "seconds"]
-                                               (interleave ((juxt in-minutes in-secs)
-                                                            (interval last-input (now))))
+                                               (interleave ((juxt in-minutes #(mod (in-secs %) 60))
+                                                            (interval (parse format-time last-input)
+                                                                      (now))))
                                                (cons "Idle") (join " ")))]))))
     "A user with that username was not found."))
 
 (defcommand Session
   "Retrieves information about your current session."
   (let [{:keys [in-as]} @*session*
-        {:keys [sign-on]} (@users in-as)]
+        {:keys [sign-on]} (db/fetch-user in-as)]
     (do-when in-as (println "Logged in as:" in-as)
-             sign-on (println "Signed on:" (date->str sign-on)))))
+             sign-on (println "Signed on:" sign-on))))
 
 (defprotocol PPlugins
   (loaded [_] "Shows a set of the loaded plug-ins.")
@@ -215,8 +209,8 @@ specified, prints the help string and argument list for it."
             *out* (writer out)
             *session* (agent {})]
     (loop [input (read-line)]
-      (let [output (execute-layer input)]
-        (last-input)
+      (last-input)
+      (let [output (execute-layer input)]        
         (cond (string? output)
               (println output)))
       (recur (read-line)))))

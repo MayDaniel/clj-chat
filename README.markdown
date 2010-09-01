@@ -4,6 +4,9 @@ A simple chat server.
 
 ## Usage
 
+[MongoDB](http://www.mongodb.org/display/DOCS/Quickstart) is
+required. It's simple to set up.
+
     (use 'clj-chat.core)
     (-main)
 
