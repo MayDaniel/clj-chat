@@ -35,9 +35,31 @@
   ([] (->> (fetch :help) (map :command) (join " ")))
   ([command] (:doc (fetch-one :help :where (help-map command)))))
 
-(defn add-help! [command doc]
-  (when-not (fetch-help command)
-    (insert! :help (help-map command doc))))
-
 (defn remove-help! [command]
   (destroy! :help (help-map command)))
+
+(defn add-help! [command doc]
+  (remove-help! command)
+  (insert! :help (help-map command doc)))
+
+;;;;;;
+
+(defn fetch-rooms
+  ([] (fetch :rooms))
+  ([room] (fetch-one :rooms :where {:room room})))
+
+(defn room-exists? [room]
+  (boolean (fetch-rooms room)))
+
+(defn join-room! [room username]
+  (if (room-exists? room)
+    (let [room (fetch-rooms room)]
+      (update! :rooms room (update-in room [:users] conj username)))
+    (insert! :rooms {:room room :users #{username}})))
+
+(defn exit-room! [room username]
+  (let [room (fetch-rooms room)]
+    (update! :rooms room (update-in room [:users] #(remove #{username} %)))))
+
+(defn fetch-room-users [room]
+  (:users (fetch-rooms room)))

@@ -16,7 +16,7 @@ Start MongoDB.
     (use 'clj-chat.core)
     (-main)
 
-Connect to the server.
+Connect to the server on port 3333.
 
 ## Extending
 

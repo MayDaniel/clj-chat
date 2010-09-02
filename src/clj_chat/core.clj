@@ -1,5 +1,5 @@
 (ns clj-chat.core
-  (:refer-clojure :exclude [load assoc-in])
+  (:refer-clojure :exclude [load])
   (:import java.io.FileNotFoundException)
   (:require [clojure.contrib.str-utils2 :as str]
             [clj-chat.db :as db])
@@ -13,12 +13,12 @@
          [format :only [formatters parse unparse]]
          [coerce :only [to-date]]]))
 
-(defonce rooms (ref {}))
+(def user-streams (agent {}))
 (declare *session*)
 
 (defmacro do-when [& clauses]
-  `(do ~@(loop [clauses clauses acc []]
-           (cond (not (seq clauses)) acc
+  `(do ~@(loop [clauses (seq clauses) acc []]
+           (cond (not clauses) acc
                  (not (next clauses))
                  (throw (IllegalArgumentException.
                          "do-when requires an even number of forms."))
@@ -27,12 +27,6 @@
                                               (second clauses))))))))
 
 (def format-time (formatters :basic-date-time))
-
-(defn assoc-in [map [& ks] key val & key-vals]
-  (apply update-in map ks assoc key val key-vals))
-
-(defn dissoc-in [map [& ks] key & keys]
-  (apply update-in map ks dissoc key keys))
 
 (defn date->str
   ([] (date->str (now)))
@@ -43,13 +37,18 @@
                 "[" room "] " user ": " message)))
 
 (defn interval->now [date]
-  (let [[seconds minutes] ((juxt in-minutes in-secs)
+  (let [[minutes seconds] ((juxt in-minutes in-secs)
                            (interval date (now)))]
-    (join " " [minutes "minutes" (mod seconds 60) "seconds"])))
+    (str minutes " minutes " (mod seconds 60) " seconds")))
 
 (defn last-input []
   (when-let [in-as (:in-as @*session*)]
     (db/update-user! in-as merge {:last-input (unparse format-time (now))})))
+
+(defn logout [user]
+  (doseq [{:keys [room users]} (db/fetch-rooms) :when (some #{user} users)]
+    (db/exit-room! room user))
+  (db/update-user! user dissoc :logged-in? :sign-on :last-input))
 
 (defmulti execute (fn [input]
                     (-> (re-split #"\s+" input)
@@ -118,37 +117,36 @@ specified, prints the help string and argument list for it."
         (not= password (:password (db/fetch-user username)))
         "Incorrect password."
         :else (do (db/update-user! username merge {:logged-in? true :sign-on (date->str)})
-                  (send-off *session* assoc :in-as username)
+                  (send *session* assoc :in-as username)
                   "Log in successful.")))
 
 (defcommand Say
   "Prints your message to all users in the specified room."
   [room & message]
   (let [in-as (:in-as @*session*)
-        users (@rooms room)]
+        users (db/fetch-room-users room)]
     (cond (not in-as)
           "You must be logged in to talk."
           (not users)
-          "A channel with that name does not exist, or contains no users."
-          :else (doseq [[_ stream] users]
-                  (binding [*out* stream]
+          "A channel with that name does not exist."
+          :else (doseq [user users]
+                  (binding [*out* (@user-streams user)]
                     (print-message room in-as message))))))
 
 (defcommand Join
   "Creates or joins a room."
   [room]
   (if-let [in-as (:in-as @*session*)]
-    (do (dosync (alter rooms assoc-in [room] in-as *out*))
+    (do (send-off user-streams assoc in-as *out*)
+        (db/join-room! room in-as)
         "Successfully joined the room.")
     "You must be logged in to join rooms."))
 
 (defcommand Logout
   "Logs a user out and removes them from all rooms."
   (if-let [in-as (:in-as @*session*)]
-    (do (doseq [[room users] @rooms :when (contains? users in-as)]
-          (alter rooms dissoc-in [room] in-as))
-        (send-off *session* dissoc :in-as)
-        (db/update-user! in-as dissoc :logged-in? :sign-on :last-input)
+    (do (logout in-as)
+        (send *session* dissoc :in-as)
         "You've successfully logged out.")
     "You're not logged in."))
 
@@ -204,7 +202,8 @@ specified, prints the help string and argument list for it."
 (defn execute-layer [input]
   (try (execute input)
        (catch java.lang.NullPointerException _
-         (execute "/logout"))))
+         (when-let [in-as (:in-as @*session*)]
+           (logout in-as)))))
 
 (defn loop-handler [in out]
   (binding [*in* (reader in)
