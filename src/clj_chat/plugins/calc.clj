@@ -6,17 +6,12 @@
 (def operators #{'+ '- '* '/ '=})
 
 (defcommand calc
-  "A simple infix-notation calculator."
+  "A simple infix-notation calculator, supporting operators \"+ - * / =\""
   [& input]
-  (try (let [input (map read-string (split input #"\s+"))
-             init (first input)
-             operations (->> (rest input)
-                             (separate symbol?)
-                             (apply interleave))]
-         (let [result (reduce (fn [result [op n]] ((resolve op) result n)) init
-                              (partition 2 operations))]
-           (if (or (even? (count input))
-                   (not-every? (fn-or number? operators) operations)
-                   (not (number? result)))
-             "Input error." (str result))))
+  (try (let [[init & operations :as input] (map read-string (split input #"\s+"))
+             result (eval (list* '-> init (map (fn [operation] (remove nil? operation))
+                                               (partition-all 2 operations))))]
+         (if (or (not-every? (fn-or number? operators) input)
+                 (not (number? result)))
+           "Input error." (str result)))
        (catch Exception _ "Input error.")))
