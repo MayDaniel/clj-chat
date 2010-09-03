@@ -63,21 +63,3 @@
 
 (defn fetch-room-users [room]
   (:users (fetch-rooms room)))
-
-;;;;;;
-
-(defn has-record? [username]
-  (boolean (fetch-one :messages :where (user-map username))))
-
-(defn fetch-messages [username]
-  (:messages (fetch-one :messages :where (user-map username))))
-
-(defn add-message! [username message]
-  (if (has-record? username)
-    (let [record (fetch-messages username)]
-      (update! :messages record (update-in record [:messages] conj message)))
-    (insert! :messages {:username username :messages [message]})))
-
-(defn remove-message! [username message]
-  (let [record (fetch-one :messages :where (user-map username))]
-    (update! :messages record (update-in record [:messages] #(remove #{message} %)))))
