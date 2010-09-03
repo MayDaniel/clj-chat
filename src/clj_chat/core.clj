@@ -241,5 +241,8 @@ specified, prints the help string and argument list for it."
 
 (defn -main []
   (defonce server (create-server 3333 loop-handler))
-  (defonce plugins (Plugins. (atom #{})))
-  (update plugins) (load plugins))
+  (defonce plugins (doto (Plugins. (atom #{})) (update) (load)))
+  ;; (use 'clj-chat.core :reload)
+  ;; (use 'clj-chat.admin #_:reload)
+  ;; (use 'clj-chat.db #_:reload)
+  )
