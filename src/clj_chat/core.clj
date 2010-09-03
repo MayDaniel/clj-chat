@@ -38,9 +38,12 @@
   ([] (date->str (now)))
   ([date] (-> date to-date str (subs 0 19))))
 
-(defn print-message [room user message]
+(defn p-message [room user message]
   (println (str "(" (date->str) ")"
                 "[" room "] " user ": " message)))
+
+(defn p-private-msg [{:keys [date from message]}]
+  (println (str "Private: [" date "]" "(" from ")") message))
 
 (defn interval->now [date]
   (let [[minutes seconds] ((juxt in-minutes in-secs)
@@ -49,6 +52,7 @@
 
 (defn last-input []
   (when-let [in-as (:in-as @*session*)]
+    (send-off user-streams assoc in-as *out*)
     (db/update-user! in-as merge {:last-input (unparse format-time (now))})))
 
 (defn logout [user]
@@ -126,6 +130,47 @@ specified, prints the help string and argument list for it."
                   (send *session* assoc :in-as username)
                   "Log in successful.")))
 
+(defcommand Msg
+  "Sends a private message to the target user. If they're logged out, the message is saved, and can be accessed using command \"/getmsgs\""
+  [target & message]
+  (let [in-as (:in-as @*session*)
+        msg {:message message :from in-as :date (date->str)}]
+    (cond (not in-as)
+          "You must be logged in to send private messages."
+          (not (db/user-exists? target))
+          "The specified user does not exist."
+          (:logged-in? (db/fetch-user target))
+          (binding [*out* (@user-streams target)]
+            (p-private-msg msg))
+          :else (do (db/add-message! target msg)
+                    "The message was added to their inbox."))))
+
+(defcommand Getmsgs
+  "View your private messages"
+  (if-let [in-as (:in-as @*session*)]
+    (let [msgs (db/fetch-messages in-as)
+          msg-count (count msgs)]
+      (if (zero? msg-count)
+        "You have 0 messages in your inbox."
+        (doseq [msg msgs]
+          (p-private-msg msg)
+          (db/remove-message! in-as msg))))
+    "You must be logged in to view your private messages."))
+
+(defcommand Say
+  "Prints your message to all users in the specified room."
+  [room & message]
+  (let [in-as (:in-as @*session*)
+        users (db/fetch-room-users room)]
+    (cond (not in-as)
+          "You must be logged in to talk."
+          (not users)
+          "A channel with that name does not exist."
+          :else (doseq [stream (map @user-streams users)]
+                  (when stream
+                    (binding [*out* stream]
+                      (p-message room in-as message)))))))
+
 (defcommand Say
   "Prints your message to all users in the specified room."
   [room & message]
@@ -136,15 +181,17 @@ specified, prints the help string and argument list for it."
           (not users)
           "A channel with that name does not exist."
           :else (doseq [user users]
-                  (binding [*out* (@user-streams user)]
-                    (print-message room in-as message))))))
+                  (try (binding [*out* (@user-streams user)]
+                         (p-message room in-as message))
+                       (catch java.lang.NullPointerException _
+                         (send user-streams dissoc user)
+                         (logout user)))))))
 
 (defcommand Join
   "Creates or joins a room."
   [room]
   (if-let [in-as (:in-as @*session*)]
-    (do (send-off user-streams assoc in-as *out*)
-        (db/join-room! room in-as)
+    (do (db/join-room! room in-as)
         "Successfully joined the room.")
     "You must be logged in to join rooms."))
 
