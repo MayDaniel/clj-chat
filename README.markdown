@@ -18,13 +18,11 @@ Start MongoDB.
 
 Connect to the server on port 3333.
 
-## Extending
+## Extending(http://github.com/MayDaniel/clj-chat/blob/master/src/clj_chat/plugins/)
 
 There are a few example plug-ins [here](http://github.com/MayDaniel/clj-chat/blob/master/src/clj_chat/plugins/).
 
-To load your plug-in, add the namespace postfix (for example,
-namespace foo.bar.baz would have the postfix baz) to the set in
-[plugins.config](http://github.com/MayDaniel/clj-chat/blob/master/plugins.config).
+To load your plug-in, add the config to [plugins.clj](http://github.com/MayDaniel/clj-chat/plugins.clj) with the format {"plug-in-namespace-postfix" #{"command1" "command"}}.
 
 The var 'plugins' is created upon calling -main, allowing you to
 load/unload/reload plugins without killing the server.

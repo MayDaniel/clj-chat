@@ -222,7 +222,7 @@ specified, prints the help string and argument list for it."
             (db/remove-help! command)
             (remove-method execute command)))
   (unload [p] (doseq [ns-str @loaded] (unload p ns-str)))
-  (update [_] (reset! loadable (in "plugins.config")))
+  (update [_] (reset! loadable (in "plugins.clj")))
   (reload [p] (doto p update unload load)))
 
 (defn execute-layer [input]
