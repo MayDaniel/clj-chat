@@ -1,6 +1,5 @@
 (ns clj-chat.plugins.calc
   (:use [clj-chat.core :only [defcommand fn-or]]
-        [clojure.contrib.seq :only [separate]]
         [clojure.string :only [split]]))
 
 (def operators #{'+ '- '* '/ '=})

@@ -26,10 +26,14 @@
                               (conj acc (list 'when (first clauses)
                                               (second clauses))))))))
 
-(defn fn-and [& fns]
+(defn fn-and
+  "((fn-and number? integer?) 5) -> true"
+  [& fns]
   (fn [x] (every? boolean ((apply juxt identity fns) x))))
 
-(defn fn-or [& fns]
+(defn fn-or
+  "((fn-or char? string?) \"foo\") -> true"
+  [& fns]
   (fn [x] (boolean (some boolean ((apply juxt identity fns) x)))))
 
 (def format-time (formatters :basic-date-time))
