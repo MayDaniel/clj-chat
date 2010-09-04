@@ -28,13 +28,13 @@
 
 (defn fn-and
   "((fn-and number? integer?) 5) -> true"
-  [& fns]
-  (fn [x] (every? boolean ((apply juxt identity fns) x))))
+  [f & fns]
+  (fn [x] (every? boolean ((apply juxt f fns) x))))
 
 (defn fn-or
   "((fn-or char? string?) \"foo\") -> true"
-  [& fns]
-  (fn [x] (boolean (some boolean ((apply juxt identity fns) x)))))
+  [f & fns]
+  (fn [x] (boolean (some boolean ((apply juxt f fns) x)))))
 
 (def format-time (formatters :basic-date-time))
 
@@ -197,34 +197,33 @@ specified, prints the help string and argument list for it."
              sign-on (println "Signed on:" sign-on))))
 
 (defprotocol PPlugins
+  (loadable [_] "Shows a map of the loadable plug-ins, and their commands.")
   (loaded [_] "Shows a set of the loaded plug-ins.")
   (load [_] [_ command] "Loads all, or a single plug-in.")
   (unload [_] [_ command] "Unloads all, or a single plug-in.")
   (update [_] "Reloads the plug-in configuration file.")
   (reload [_] "Updates, unloads, loads."))
 
-(defrecord Plugins [loaded]
+(defrecord Plugins [loadable loaded]
   PPlugins
+  (loadable [_] @loadable)
   (loaded [_] @loaded)
-  (load [plugins command]
-        (try (require (symbol (str "clj-chat.plugins." command)) :reload)
-             (swap! loaded conj command)
+  (load [_ ns-str]
+        (try (require (symbol (str "clj-chat.plugins." ns-str)) :reload)
+             (swap! loaded conj ns-str)
              (catch Exception e
-               (println "Plugin:" (str "<" command ">") "could not be loaded.")
+               (println "Plugin:" (str "<" ns-str ">") "could not be loaded.")
                (println "Reason:" (cond (instance? FileNotFoundException e)
-                                        "File not found."
-                                        :else "Unknown.")))))
-  (load [plugins] (doseq [command @loaded] (load plugins command)))
-  (unload [plugins] (doseq [command @loaded] (unload plugins command)))
-  (unload [plugins command]
-          (db/remove-help! command)
-          (swap! loaded disj command)
-          (remove-method execute command))
-  (update [_] (reset! loaded (-> "plugins.config" in :plugins)))
-  (reload [plugins]
-          (update plugins)
-          (unload plugins)
-          (load plugins)))
+                                        "File not found" :else "Unknown.")))))
+  (load [p] (doseq [command (keys @loadable)] (load p command)))
+  (unload [p ns-str]
+          (swap! loaded disj ns-str)
+          (doseq [command (@loadable ns-str)]
+            (db/remove-help! command)
+            (remove-method execute command)))
+  (unload [p] (doseq [ns-str @loaded] (unload p ns-str)))
+  (update [_] (reset! loadable (in "plugins.config")))
+  (reload [p] (doto p update unload load)))
 
 (defn execute-layer [input]
   (try (execute input)
@@ -245,7 +244,8 @@ specified, prints the help string and argument list for it."
 
 (defn -main []
   (defonce server (create-server 3333 loop-handler))
-  (defonce plugins (doto (Plugins. (atom #{})) (update) (load)))
+  (defonce plugins (doto (Plugins. (atom #{}) (atom #{}))
+                     update load))
   ;; (use 'clj-chat.core :reload)
   ;; (use 'clj-chat.admin #_:reload)
   ;; (use 'clj-chat.db #_:reload)
