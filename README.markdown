@@ -24,7 +24,7 @@ load/unload/reload plugins without killing the server.
 
 ## Installation
 
-Clone the repository.
+Clone the repository, see 'Usage'.
 
 ## License
 
