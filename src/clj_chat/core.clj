@@ -75,8 +75,9 @@
         options (if (string? (first options))
                   (next options) options)
         args (when (vector? (not-empty (first options)))
-               (first options))
-        last-arg (last args)
+               (remove #{'&} (first options)))
+        has-&? (= args (first options))
+        arg-count (-> args count inc)
         help (if args
                (assoc help :args (join " " args)) help)
         body (if (vector? (first options))
@@ -84,9 +85,9 @@
     (db/add-help! cmd help)
     `(defmethod execute ~cmd
        [~'input]
-       (let [[~(gensym) ~@args] (re-split #"\s+" ~'input)
-             ~(or last-arg (gensym)) (or (and (coll? ~last-arg) (join " " ~last-arg))
-                                         ~last-arg)]
+       (let [[_# ~@args] (if ~has-&?
+                           (re-split #"\s+" ~'input)
+                           (re-split #"\s+" ~'input ~arg-count))]
          ~@body))))
 
 (defmethod execute :default [input]
