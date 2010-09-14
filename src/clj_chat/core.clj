@@ -140,20 +140,6 @@ specified, prints the help string and argument list for it."
           "You must be logged in to talk."
           (not users)
           "A channel with that name does not exist."
-          :else (doseq [stream (map @user-streams users)]
-                  (when stream
-                    (binding [*out* stream]
-                      (print-message room in-as message)))))))
-
-(defcommand Say
-  "Prints your message to all users in the specified room."
-  [room & message]
-  (let [in-as (:in-as @*session*)
-        users (db/fetch-room-users room)]
-    (cond (not in-as)
-          "You must be logged in to talk."
-          (not users)
-          "A channel with that name does not exist."
           :else (doseq [user users]
                   (try (binding [*out* (@user-streams user)]
                          (print-message room in-as message))
