@@ -2,10 +2,6 @@
 
 A simple chat server.
 
-## TODO
-
-Limit the re-split in defcommand, so spaces in input are kept.
-
 ## Usage
 
 MongoDB is required, but it's simple to [set up](http://www.mongodb.org/display/DOCS/Quickstart).

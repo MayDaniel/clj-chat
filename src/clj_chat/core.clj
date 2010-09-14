@@ -5,8 +5,7 @@
             [clj-chat.db :as db])
   (:use [clojure.contrib.server-socket :only [create-server]]
         [clojure.java.io :only [reader writer]]
-        [clojure.string :only [lower-case capitalize join]]
-        [clojure.contrib.str-utils :only [re-split]]
+        [clojure.string :only [lower-case capitalize join split]]
         [clj-store.core :only [in]]
         [clj-time
          [core :only [interval in-minutes in-secs now]]
@@ -62,7 +61,7 @@
   (db/update-user! user dissoc :logged-in? :sign-on :last-input))
 
 (defmulti execute (fn [input]
-                    (-> (re-split #"\s+" input)
+                    (-> (split input #"\s+" )
                         (first) (str/drop 1) (lower-case)))
   :default :default)
 
@@ -86,8 +85,8 @@
     `(defmethod execute ~cmd
        [~'input]
        (let [[_# ~@args] (if ~has-&?
-                           (re-split #"\s+" ~'input)
-                           (re-split #"\s+" ~'input ~arg-count))]
+                           (split ~'input #"\s+")
+                           (split ~'input #"\s+" ~arg-count))]
          ~@body))))
 
 (defmethod execute :default [input]
