@@ -183,17 +183,16 @@ specified, prints the help string and argument list for it."
              sign-on (println "Signed on:" sign-on))))
 
 (defprotocol PPlugins
-  (loadable [_] "Shows a map of the loadable plug-ins, and their commands.")
-  (loaded [_] "Shows a set of the loaded plug-ins.")
   (load [_] [_ command] "Loads all, or a single plug-in.")
   (unload [_] [_ command] "Unloads all, or a single plug-in.")
   (update [_] "Reloads the plug-in configuration file.")
   (reload [_] "Updates, unloads, loads."))
 
 (defrecord Plugins [loadable loaded]
+  clojure.lang.IDeref
+  (deref [_] (do (println "Loaded:" @loaded)
+                 (println "Loadable:" @loadable)))
   PPlugins
-  (loadable [_] @loadable)
-  (loaded [_] @loaded)
   (load [_ ns-str]
         (try (require (symbol (str "clj-chat.plugins." ns-str)) :reload)
              (swap! loaded conj ns-str)
