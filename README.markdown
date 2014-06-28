@@ -22,12 +22,8 @@ To load your plug-in, add the config to [plugins.clj](http://github.com/MayDanie
 The var 'plugins' is created upon calling -main, allowing you to
 load/unload/reload plugins without killing the server.
 
-## Installation
-
-Clone the repository, see 'Usage'.
-
 ## License
 
-Copyright (C) 2010 FIXME
+Copyright (C) 2010 Daniel May
 
 Distributed under the Eclipse Public License, the same as Clojure.
